@@ -1,6 +1,6 @@
 use crate::config::Config;
-use crate::taskwarrior::ActiveTask;
 use crate::log;
+use crate::taskwarrior::ActiveTask;
 use aw_client_rust::blocking::AwClient;
 use aw_models::Event;
 use chrono::Utc;
@@ -33,16 +33,16 @@ impl AwTaskWatcherClient {
         &self.bucket_id
     }
 
-    pub fn ensure_bucket_with_shutdown_check(
-        &self,
-        shutdown: &std::sync::Arc<AtomicBool>,
-    ) -> bool {
+    pub fn ensure_bucket_with_shutdown_check(&self, shutdown: &std::sync::Arc<AtomicBool>) -> bool {
         loop {
             if shutdown.load(Ordering::SeqCst) {
                 return false;
             }
 
-            match self.client.create_bucket_simple(&self.bucket_id, "task-activity") {
+            match self
+                .client
+                .create_bucket_simple(&self.bucket_id, "task-activity")
+            {
                 Ok(_) => {
                     log::log_info(&format!("Bucket {} ready", self.bucket_id));
                     return true;
@@ -89,12 +89,7 @@ impl AwTaskWatcherClient {
         if !task.tags.is_empty() {
             data.insert(
                 "tags".to_string(),
-                Value::Array(
-                    task.tags
-                        .iter()
-                        .map(|t| Value::String(t.clone()))
-                        .collect(),
-                ),
+                Value::Array(task.tags.iter().map(|t| Value::String(t.clone())).collect()),
             );
         }
 

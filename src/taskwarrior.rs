@@ -1,8 +1,8 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::process::Command;
-use std::time::Duration;
 use std::thread;
-use chrono::{DateTime, Utc};
+use std::time::Duration;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RawTwTask {
@@ -51,8 +51,13 @@ impl std::fmt::Display for TaskQueryError {
                 write!(
                     f,
                     "task command exited with status {}: {}",
-                    code.map(|c| c.to_string()).unwrap_or_else(|| "unknown".to_string()),
-                    if stderr.is_empty() { "(no stderr)" } else { stderr }
+                    code.map(|c| c.to_string())
+                        .unwrap_or_else(|| "unknown".to_string()),
+                    if stderr.is_empty() {
+                        "(no stderr)"
+                    } else {
+                        stderr
+                    }
                 )
             }
             TaskQueryError::InvalidJson(e) => write!(f, "failed to parse task JSON: {}", e),
@@ -69,8 +74,8 @@ pub fn query_active_task() -> Result<ActiveTask, TaskQueryError> {
         return Ok(ActiveTask::default_task());
     }
 
-    let tasks: Vec<RawTwTask> = serde_json::from_str(trimmed)
-        .map_err(TaskQueryError::InvalidJson)?;
+    let tasks: Vec<RawTwTask> =
+        serde_json::from_str(trimmed).map_err(TaskQueryError::InvalidJson)?;
 
     if tasks.is_empty() {
         return Ok(ActiveTask::default_task());

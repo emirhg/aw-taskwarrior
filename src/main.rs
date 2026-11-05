@@ -1,12 +1,12 @@
-mod log;
-mod config;
-mod taskwarrior;
 mod activitywatch;
+mod config;
+mod log;
+mod taskwarrior;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 use std::thread;
+use std::time::Duration;
 
 fn main() {
     // Load config
@@ -24,7 +24,8 @@ fn main() {
         let shutdown = shutdown.clone();
         ctrlc::set_handler(move || {
             shutdown.store(true, Ordering::SeqCst);
-        }).expect("Error installing signal handler");
+        })
+        .expect("Error installing signal handler");
     }
 
     // Create ActivityWatch client
@@ -36,7 +37,10 @@ fn main() {
         }
     };
 
-    log::log_info(&format!("Starting aw-taskwarrior, bucket={}", aw_client.bucket_id()));
+    log::log_info(&format!(
+        "Starting aw-taskwarrior, bucket={}",
+        aw_client.bucket_id()
+    ));
 
     // Ensure bucket exists (retry with shutdown signal honored)
     if !aw_client.ensure_bucket_with_shutdown_check(&shutdown) {
@@ -56,7 +60,10 @@ fn main() {
                 t
             }
             Err(e) => {
-                log::log_error(&format!("task query failed, reusing last known task: {}", e));
+                log::log_error(&format!(
+                    "task query failed, reusing last known task: {}",
+                    e
+                ));
                 last_known_task.clone()
             }
         };
