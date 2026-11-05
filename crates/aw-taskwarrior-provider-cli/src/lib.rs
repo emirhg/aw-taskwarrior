@@ -1,8 +1,17 @@
+//! CLI task provider: reads the active task by running `task rc.hooks:off +ACTIVE export`.
+
+use aw_taskwarrior_core::{ActiveTask, ProviderError, TaskProvider};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 use std::thread;
 use std::time::Duration;
+
+/// Provider name used in config (`provider = "cli"`) and logs.
+pub const NAME: &str = "cli";
+
+/// Default time allowed for one `task export` call.
+const DEFAULT_TIMEOUT_SECONDS: u64 = 5;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RawTwTask {
@@ -13,25 +22,6 @@ pub struct RawTwTask {
     #[serde(default)]
     pub tags: Vec<String>,
     pub start: String, // "20260723T200958Z"
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ActiveTask {
-    pub uuid: Option<String>,
-    pub title: String,
-    pub project: String,
-    pub tags: Vec<String>,
-}
-
-impl ActiveTask {
-    pub fn default_task() -> Self {
-        ActiveTask {
-            uuid: None,
-            title: "No task tracked".to_string(),
-            project: String::new(),
-            tags: Vec::new(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -46,7 +36,7 @@ impl std::fmt::Display for TaskQueryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TaskQueryError::Spawn(e) => write!(f, "failed to spawn task command: {}", e),
-            TaskQueryError::Timeout => write!(f, "task command timed out after 5 seconds"),
+            TaskQueryError::Timeout => write!(f, "task command timed out"),
             TaskQueryError::NonZeroExit { code, stderr } => {
                 write!(
                     f,
@@ -65,23 +55,71 @@ impl std::fmt::Display for TaskQueryError {
     }
 }
 
-pub fn query_active_task() -> Result<ActiveTask, TaskQueryError> {
-    let output = run_task_export_with_timeout(Duration::from_secs(5))?;
+/// Reads the active task by running `task` through this provider.
+pub struct CliProvider {
+    timeout: Duration,
+}
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let trimmed = stdout.trim();
-    if trimmed.is_empty() {
-        return Ok(ActiveTask::default_task());
+impl CliProvider {
+    pub fn new(timeout: Duration) -> Self {
+        CliProvider { timeout }
     }
 
-    let tasks: Vec<RawTwTask> =
-        serde_json::from_str(trimmed).map_err(TaskQueryError::InvalidJson)?;
+    fn query(&self) -> Result<ActiveTask, TaskQueryError> {
+        let output = run_task_export_with_timeout(self.timeout)?;
 
-    if tasks.is_empty() {
-        return Ok(ActiveTask::default_task());
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let trimmed = stdout.trim();
+        if trimmed.is_empty() {
+            return Ok(ActiveTask::default_task());
+        }
+
+        let tasks: Vec<RawTwTask> =
+            serde_json::from_str(trimmed).map_err(TaskQueryError::InvalidJson)?;
+
+        if tasks.is_empty() {
+            return Ok(ActiveTask::default_task());
+        }
+
+        Ok(pick_latest(tasks))
+    }
+}
+
+impl TaskProvider for CliProvider {
+    fn name(&self) -> &'static str {
+        NAME
     }
 
-    Ok(pick_latest(tasks))
+    fn active_task(&self) -> Result<ActiveTask, ProviderError> {
+        self.query().map_err(|e| {
+            let msg = e.to_string();
+            match e {
+                TaskQueryError::Timeout => ProviderError::Timeout,
+                TaskQueryError::InvalidJson(_) => ProviderError::InvalidResponse(msg),
+                TaskQueryError::Spawn(_) | TaskQueryError::NonZeroExit { .. } => {
+                    ProviderError::Unavailable(msg)
+                }
+            }
+        })
+    }
+}
+
+/// Builds the CLI provider from `[providers.cli]` settings.
+/// Supported key: `timeout_seconds` (positive integer, default 5).
+pub fn create(settings: Option<&toml::Table>) -> Result<Box<dyn TaskProvider>, ProviderError> {
+    let timeout_seconds = match settings.and_then(|t| t.get("timeout_seconds")) {
+        None => DEFAULT_TIMEOUT_SECONDS,
+        Some(toml::Value::Integer(n)) if *n >= 1 => *n as u64,
+        Some(other) => {
+            return Err(ProviderError::InvalidConfig(format!(
+                "providers.cli.timeout_seconds must be a positive integer, got {}",
+                other
+            )))
+        }
+    };
+    Ok(Box::new(CliProvider::new(Duration::from_secs(
+        timeout_seconds,
+    ))))
 }
 
 fn run_task_export_with_timeout(timeout: Duration) -> Result<std::process::Output, TaskQueryError> {
@@ -262,5 +300,35 @@ mod tests {
         let ts = "garbage";
         let result = parse_tw_timestamp(ts);
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_create_without_settings_uses_default() {
+        let provider = create(None).unwrap();
+        assert_eq!(provider.name(), NAME);
+    }
+
+    #[test]
+    fn test_create_accepts_timeout_seconds() {
+        let table: toml::Table = toml::from_str("timeout_seconds = 9").unwrap();
+        assert!(create(Some(&table)).is_ok());
+    }
+
+    #[test]
+    fn test_create_rejects_non_positive_timeout() {
+        let table: toml::Table = toml::from_str("timeout_seconds = 0").unwrap();
+        assert!(matches!(
+            create(Some(&table)),
+            Err(ProviderError::InvalidConfig(_))
+        ));
+    }
+
+    #[test]
+    fn test_create_rejects_non_integer_timeout() {
+        let table: toml::Table = toml::from_str("timeout_seconds = \"5\"").unwrap();
+        assert!(matches!(
+            create(Some(&table)),
+            Err(ProviderError::InvalidConfig(_))
+        ));
     }
 }

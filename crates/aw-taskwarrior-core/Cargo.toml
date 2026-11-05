@@ -1,0 +1,7 @@
+[package]
+name = "aw-taskwarrior-core"
+version.workspace = true
+edition.workspace = true
+description = "Shared model and TaskProvider interface for aw-taskwarrior. Zero dependencies."
+
+[dependencies]

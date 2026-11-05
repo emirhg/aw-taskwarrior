@@ -22,8 +22,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - When code for a requirement lands, set its status in `docs/requirements/` and `docs/STATUS.md` in that same commit.
 - Diagrams are Mermaid code blocks. Do not add image files.
 
+## Workspace and providers
+
+- The repo is a Cargo workspace. Run `cargo` commands from the repository root; they cover every crate.
+- `aw-taskwarrior-core` must keep zero dependencies.
+- The watcher (`crates/aw-taskwarrior`) must not import provider internals. It uses only `providers::build`, `TaskProvider`, and `ActiveTask`.
+- A new provider needs a requirement in `docs/requirements/` first, then its own crate, a feature, and one `cfg` arm in `crates/aw-taskwarrior/src/providers.rs`.
+
 ## Project notes
 
-- The daemon polls TaskWarrior with `task rc.hooks:off +ACTIVE export`. Keep `rc.hooks:off` so the query does not trigger user hooks.
+- The CLI provider polls TaskWarrior with `task rc.hooks:off +ACTIVE export`. Keep `rc.hooks:off` so the query does not trigger user hooks.
 - Empty or null values must be omitted from ActivityWatch heartbeat payloads. Do not send them.
-- Config is optional. Every setting needs a built-in default in `src/config.rs`, so the daemon runs with no config file.
+- Config is optional. Every setting needs a built-in default in `crates/aw-taskwarrior/src/config.rs`, so the daemon runs with no config file.

@@ -1,0 +1,25 @@
+[package]
+name = "aw-taskwarrior"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "aw-taskwarrior"
+path = "src/main.rs"
+
+[features]
+default = ["provider-cli"]
+provider-cli = ["dep:aw-taskwarrior-provider-cli"]
+
+[dependencies]
+aw-taskwarrior-core = { workspace = true }
+aw-taskwarrior-provider-cli = { workspace = true, optional = true }
+aw-client-rust = { workspace = true }
+aw-models = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+dirs = { workspace = true }
+ctrlc = { workspace = true }
+chrono = { workspace = true }
+gethostname = { workspace = true }

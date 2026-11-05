@@ -1,0 +1,12 @@
+[package]
+name = "aw-taskwarrior-provider-cli"
+version.workspace = true
+edition.workspace = true
+description = "CLI task provider for aw-taskwarrior: reads the active task from the task command."
+
+[dependencies]
+aw-taskwarrior-core = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }

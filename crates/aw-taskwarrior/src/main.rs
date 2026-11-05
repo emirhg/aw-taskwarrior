@@ -1,8 +1,9 @@
 mod activitywatch;
 mod config;
 mod log;
-mod taskwarrior;
+mod providers;
 
+use aw_taskwarrior_core::ActiveTask;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -17,6 +18,16 @@ fn main() {
             std::process::exit(1);
         }
     };
+
+    // Build the task provider selected by config (fails fast before any network I/O)
+    let provider = match providers::build(&cfg) {
+        Ok(p) => p,
+        Err(e) => {
+            log::log_error(&format!("Fatal: {}", e));
+            std::process::exit(1);
+        }
+    };
+    log::log_info(&format!("Using task provider '{}'", provider.name()));
 
     // Install signal handler for clean shutdown
     let shutdown = Arc::new(AtomicBool::new(false));
@@ -49,24 +60,12 @@ fn main() {
     }
 
     // Initialize last known task to the default task
-    let mut last_known_task = taskwarrior::ActiveTask::default_task();
+    let mut last_known_task = ActiveTask::default_task();
 
     // Main poll loop
     while !shutdown.load(Ordering::SeqCst) {
-        // Query TaskWarrior for active task
-        let task = match taskwarrior::query_active_task() {
-            Ok(t) => {
-                last_known_task = t.clone();
-                t
-            }
-            Err(e) => {
-                log::log_error(&format!(
-                    "task query failed, reusing last known task: {}",
-                    e
-                ));
-                last_known_task.clone()
-            }
-        };
+        // Ask the provider for the active task; falls back to the last known task on failure
+        let task = providers::resolve_task(provider.as_ref(), &mut last_known_task);
 
         // Select pulsetime based on whether task has offline tag
         let pulsetime = activitywatch::select_pulsetime(&task, &cfg);

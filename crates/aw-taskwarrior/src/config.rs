@@ -10,6 +10,10 @@ pub struct Config {
     pub offline_tag: String,
     pub online_pulsetime_seconds: u64,
     pub offline_pulsetime_seconds: u64,
+    /// Name of the task provider to use, e.g. "cli".
+    pub provider: String,
+    /// Per-provider settings, keyed by provider name. Passed opaquely to the provider.
+    pub providers: toml::Table,
 }
 
 impl Default for Config {
@@ -22,6 +26,8 @@ impl Default for Config {
             offline_tag: "OFFLINE".to_string(),
             online_pulsetime_seconds: 120,
             offline_pulsetime_seconds: 43_200,
+            provider: "cli".to_string(),
+            providers: toml::Table::new(),
         }
     }
 }
@@ -35,6 +41,8 @@ struct ConfigFile {
     offline_tag: Option<String>,
     online_pulsetime_seconds: Option<u64>,
     offline_pulsetime_seconds: Option<u64>,
+    provider: Option<String>,
+    providers: Option<toml::Table>,
 }
 
 #[derive(Debug)]
@@ -92,6 +100,12 @@ pub fn load() -> Result<Config, ConfigLoadError> {
     }
     if let Some(v) = file.offline_pulsetime_seconds {
         cfg.offline_pulsetime_seconds = v;
+    }
+    if let Some(v) = file.provider {
+        cfg.provider = v;
+    }
+    if let Some(v) = file.providers {
+        cfg.providers = v;
     }
 
     Ok(cfg)
@@ -176,5 +190,30 @@ poll_interval_seconds = "not-a-number"
 "#;
         let result: Result<ConfigFile, _> = toml::from_str(toml_str);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_provider_defaults_to_cli() {
+        let cfg = Config::default();
+        assert_eq!(cfg.provider, "cli");
+        assert!(cfg.providers.is_empty());
+    }
+
+    #[test]
+    fn test_provider_and_settings_parse() {
+        let toml_str = r#"
+provider = "http"
+
+[providers.cli]
+timeout_seconds = 9
+"#;
+        let file: ConfigFile = toml::from_str(toml_str).unwrap();
+        assert_eq!(file.provider.as_deref(), Some("http"));
+        let providers = file.providers.unwrap();
+        let cli = providers.get("cli").and_then(|v| v.as_table()).unwrap();
+        assert_eq!(
+            cli.get("timeout_seconds").and_then(|v| v.as_integer()),
+            Some(9)
+        );
     }
 }

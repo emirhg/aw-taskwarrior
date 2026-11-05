@@ -1,13 +1,14 @@
-[package]
-name = "aw-taskwarrior"
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "aw-taskwarrior"
-path = "src/main.rs"
-
-[dependencies]
+[workspace.dependencies]
+aw-taskwarrior-core = { path = "crates/aw-taskwarrior-core" }
+aw-taskwarrior-provider-cli = { path = "crates/aw-taskwarrior-provider-cli" }
 aw-client-rust = { git = "https://github.com/ActivityWatch/aw-server-rust", rev = "2875df5" }
 aw-models = { git = "https://github.com/ActivityWatch/aw-server-rust", rev = "2875df5" }
 serde = { version = "1", features = ["derive"] }

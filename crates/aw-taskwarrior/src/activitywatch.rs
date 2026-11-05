@@ -1,8 +1,8 @@
 use crate::config::Config;
 use crate::log;
-use crate::taskwarrior::ActiveTask;
 use aw_client_rust::blocking::AwClient;
 use aw_models::Event;
+use aw_taskwarrior_core::ActiveTask;
 use chrono::Utc;
 use serde_json::Value;
 use std::sync::atomic::{AtomicBool, Ordering};

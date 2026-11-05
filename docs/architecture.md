@@ -7,20 +7,21 @@ aw-taskwarrior is a single-process polling daemon. Every few seconds it asks Tas
 ```mermaid
 flowchart LR
     user([User]) -->|starts/stops tasks| tw[TaskWarrior CLI<br/>task rc.hooks:off +ACTIVE export]
-    daemon[aw-taskwarrior daemon] -->|spawns and reads JSON| tw
+    daemon[aw-taskwarrior daemon] -->|via TaskProvider| prov[active-task provider]
+    prov -->|cli: spawns and reads JSON| tw
     daemon -->|create bucket, heartbeat HTTP| aws[ActivityWatch server<br/>aw-server, default localhost:5600]
     awqt[aw-qt] -.->|discovers aw-* binaries, optional autostart| daemon
     aws --> ui[ActivityWatch UI]
 ```
 
 External parts:
-- **TaskWarrior CLI (`task`)**: source of the active-task state. Run with hooks disabled.
+- **TaskWarrior CLI (`task`)**: source of the active-task state for the `cli` provider. Run with hooks disabled.
 - **ActivityWatch server (`aw-server`)**: receives the bucket and heartbeats over HTTP.
 - **aw-qt**: optional. It starts the daemon when listed in its `autostart_modules`.
 
-### Planned: provider seam (REQ-006)
+### Provider seam (REQ-006)
 
-The watcher will stop calling `task` directly. It will call a `TaskProvider` chosen from config, and the CLI, HTTP (REQ-007) and library (REQ-008) providers will sit behind it. This section describes the current code; it will be updated when REQ-006 lands.
+The watcher never calls `task` itself. It holds a `Box<dyn TaskProvider>` built from config (`provider = "cli"` by default). The provider crate is selected by a Cargo feature. Future HTTP (REQ-007) and library (REQ-008) providers plug into the same seam. The seam is documented in the requirement; the HTTP and library providers are not implemented yet.
 
 ## Startup
 
@@ -28,7 +29,9 @@ The watcher will stop calling `task` directly. It will call a `TaskProvider` cho
 flowchart TD
     A([main]) --> B[config::load]
     B -->|error| X1[log error, exit 1]
-    B -->|ok or defaults| C[install Ctrl-C/SIGTERM handler]
+    B -->|ok or defaults| P[providers::build]
+    P -->|unknown or not compiled in| X4[log error, exit 1]
+    P -->|ok| C[install Ctrl-C/SIGTERM handler]
     C --> D[AwTaskWatcherClient::new]
     D -->|error| X2[log error, exit 1]
     D -->|ok| E[log bucket id]
@@ -38,6 +41,8 @@ flowchart TD
     G --> H([enter poll loop])
 ```
 
+The provider is built before any network I/O, so a bad `provider` value fails immediately.
+
 `ensure_bucket_with_shutdown_check` retries forever. Each failed attempt logs an error and waits 30 seconds, checking the shutdown flag once per second.
 
 ## Poll loop
@@ -46,22 +51,25 @@ flowchart TD
 sequenceDiagram
     autonumber
     participant M as main loop
-    participant T as taskwarrior
+    participant P as providers::resolve_task
+    participant T as CliProvider
     participant TW as task CLI
     participant A as activitywatch
     participant S as aw-server
 
     loop every poll_interval_seconds (default 5)
-        M->>T: query_active_task()
+        M->>P: resolve_task(provider, last_known_task)
+        P->>T: active_task()
         T->>TW: task rc.hooks:off +ACTIVE export
         alt query succeeds
             TW-->>T: JSON array (possibly empty)
-            T-->>M: ActiveTask (latest start, or default)
-            M->>M: last_known_task = task
-        else spawn, timeout (5s), non-zero exit, bad JSON
-            T-->>M: TaskQueryError
-            M->>M: log error, reuse last_known_task
+            T-->>P: ActiveTask (latest start, or default)
+            P->>P: last_known_task = task
+        else spawn, timeout (default 5s), non-zero exit, bad JSON
+            T-->>P: ProviderError
+            P->>P: log error, reuse last_known_task
         end
+        P-->>M: ActiveTask
         M->>M: select_pulsetime(task, cfg)
         M->>A: send_heartbeat(task, pulsetime)
         A->>S: heartbeat(bucket, event, pulsetime)
@@ -93,7 +101,9 @@ Shutdown is also honored during startup retries and during the sleep between pol
 
 | Failure | Behavior |
 |---------|----------|
-| `task` missing, timed out, non-zero exit, or invalid JSON | Log error, reuse last known task |
+| Provider error (for `cli`: `task` missing, timed out, non-zero exit, or invalid JSON) | Log error, reuse last known task |
+| Unknown or not compiled-in provider name | Fatal at startup, exit 1 |
+| Invalid provider settings (e.g. `timeout_seconds = 0`) | Fatal at startup, exit 1 |
 | ActivityWatch unreachable at startup | Log error, retry every 30 s until reachable or shutdown |
 | Heartbeat fails | Log error, next poll sends again |
 | Config file unreadable or malformed | Fatal, exit 1 |
@@ -105,8 +115,9 @@ Shutdown is also honored during startup retries and during the sleep between pol
 - **Server-side gap merging.** Dynamic pulsetime replaces the client-side AFK-based backfill.
 - **Graceful degradation.** A failed `task` query reuses the last known state. An unreachable server is retried indefinitely.
 - **stdout/stderr logging only.** No log files, so aw-qt can read the output.
-- **Zero-config default.** Every setting has a built-in default in `src/config.rs`.
+- **Zero-config default.** Every setting has a built-in default in `crates/aw-taskwarrior/src/config.rs`.
+- **Plugin-style providers.** The watcher depends only on the `TaskProvider` trait. Each source is a separate crate, selected by config and a Cargo feature (REQ-006).
 
 ## Known issue
 
-`taskwarrior::query_active_task` spawns `task` once to wait for it to exit, then runs it a second time with `.output()` to collect stdout. The first run's output is discarded. Each poll therefore starts TaskWarrior twice. Tracked in [STATUS.md](STATUS.md).
+`CliProvider::query` (in `crates/aw-taskwarrior-provider-cli/src/lib.rs`) spawns `task` once to wait for it to exit, then runs it a second time with `.output()` to collect stdout. The first run's output is discarded. Each poll therefore starts TaskWarrior twice. Tracked in [STATUS.md](STATUS.md).

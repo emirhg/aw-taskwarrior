@@ -1,6 +1,6 @@
 # REQ-006: Plugin-style active-task providers as Cargo workspace crates
 
-- **Status:** Documented, not implemented
+- **Status:** Implemented
 - **Added:** 2026-11-05
 - **Owner:** maintainer
 
@@ -59,13 +59,13 @@ Adding a provider: new crate, new feature, one `cfg` arm in `providers.rs`, and 
 
 ## Acceptance criteria
 
-- [ ] `aw-taskwarrior-core` has no dependencies.
-- [ ] The watcher does not import any provider internals; it only uses `providers::build`, `TaskProvider`, and `ActiveTask`.
-- [ ] The CLI provider is an `aw-taskwarrior-provider-cli` crate with the existing behavior and its 7 unit tests.
-- [ ] With no config file, the daemon behaves as before (same bucket id, same heartbeats, provider `cli`).
-- [ ] Selecting a provider that is not compiled in fails at startup with the message above.
-- [ ] `resolve_task` reuses the last known task on error, tested with a stub provider.
+- [x] `aw-taskwarrior-core` has no dependencies.
+- [x] The watcher does not import any provider internals; it only uses `providers::build`, `TaskProvider`, and `ActiveTask`.
+- [x] The CLI provider is an `aw-taskwarrior-provider-cli` crate with the existing behavior and its 7 unit tests (now 11 with the new settings tests).
+- [x] With no config file, the daemon behaves as before (same bucket id, same heartbeats, provider `cli`). Verified: startup logs `Using task provider 'cli'` and the bucket id is unchanged; the heartbeat path is unchanged code.
+- [x] Selecting a provider that is not compiled in fails at startup with the message above. Verified with `provider = "http"`.
+- [x] `resolve_task` reuses the last known task on error, tested with a stub provider.
 
 ## Code references
 
-- Implemented in: (none yet)
+- Implemented in: `crates/aw-taskwarrior-core/src/lib.rs`, `crates/aw-taskwarrior-provider-cli/src/lib.rs`, `crates/aw-taskwarrior/src/providers.rs`, `crates/aw-taskwarrior/src/config.rs`, `crates/aw-taskwarrior/src/main.rs`

@@ -60,6 +60,13 @@ The daemon works **out of the box with zero configuration**. All settings have s
 For custom settings, create an optional TOML file at `~/.config/aw-taskwarrior/config.toml`:
 
 ```toml
+# Where the active task comes from. "cli" runs the `task` command (the only provider today).
+provider = "cli"
+
+# Settings for the selected provider
+[providers.cli]
+timeout_seconds = 5          # max time for one `task export` call
+
 # How often to poll TaskWarrior for active tasks (seconds)
 poll_interval_seconds = 5
 
@@ -130,28 +137,41 @@ autostart_modules = ["aw-server", "aw-watcher-afk", "aw-watcher-window", "aw-tas
 
 ## Testing
 
-All 14 unit tests pass:
+All 25 unit tests pass, run from the repository root:
 
 ```bash
 cargo test
 ```
 
 Tests cover:
-- Config loading, defaults, TOML overlays
-- TaskWarrior JSON parsing, task selection by recency
+- Config loading, defaults, TOML overlays, provider selection
+- TaskWarrior JSON parsing, task selection by recency, provider settings
 - Pulsetime selection (online vs. offline logic)
+- Provider selection and the last-known-task fallback
 
 ## Project Structure
 
-- `src/main.rs` - Poll loop, signal handling, orchestration
-- `src/config.rs` - Config struct, TOML loading, defaults
-- `src/taskwarrior.rs` - Task CLI invocation, JSON parsing
-- `src/activitywatch.rs` - AW client wrapper, bucket/heartbeat logic
-- `src/log.rs` - Simple stdout/stderr logging
+Cargo workspace; all commands run from the repository root.
+
+- `crates/aw-taskwarrior-core/` - Shared `ActiveTask`, `TaskProvider` trait, `ProviderError` (no dependencies)
+- `crates/aw-taskwarrior-provider-cli/` - CLI provider: runs `task` and parses its JSON
+- `crates/aw-taskwarrior/` - The watcher binary:
+  - `crates/aw-taskwarrior/src/main.rs` - Poll loop, signal handling, orchestration
+  - `crates/aw-taskwarrior/src/config.rs` - Config struct, TOML loading, defaults
+  - `crates/aw-taskwarrior/src/providers.rs` - Provider selection and the last-known-task fallback
+  - `crates/aw-taskwarrior/src/activitywatch.rs` - AW client wrapper, bucket/heartbeat logic
+  - `crates/aw-taskwarrior/src/log.rs` - Simple stdout/stderr logging
+
+## Adding a task provider
+
+1. Write the requirement in `docs/requirements/` and commit it first.
+2. Create `crates/aw-taskwarrior-provider-<name>/` implementing `TaskProvider`, with `pub const NAME` and `pub fn create(settings: Option<&toml::Table>)`.
+3. Add a feature to `crates/aw-taskwarrior/Cargo.toml` and one `cfg` arm in `crates/aw-taskwarrior/src/providers.rs`.
 
 ## Dependencies
 
 - `aw-client-rust` (git, ActivityWatch HTTP client)
+- `aw-taskwarrior-core` and `aw-taskwarrior-provider-cli` (workspace crates)
 - `chrono` (datetime parsing/formatting)
 - `serde`/`serde_json` (JSON serialization)
 - `toml` (config file parsing)
@@ -166,7 +186,7 @@ Tests cover:
 - Check that the daemon is polling TaskWarrior: `task +ACTIVE export` should show your active tasks
 - Verify the daemon isn't crashing silently by running it in foreground: `./target/release/aw-taskwarrior`
 
-**"task query failed, reusing last known task" in logs**
+**"task provider 'cli' failed, reusing last known task" in logs**
 - TaskWarrior binary not found or not in `$PATH`
 - Verify: `which task` and `task --version`
 - The daemon will keep using the last known task state, so it's resilient to transient failures
