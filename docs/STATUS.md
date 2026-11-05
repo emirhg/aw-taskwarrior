@@ -16,6 +16,9 @@ Rules:
 | REQ-003 | Log levels | Documented | Not implemented | Docs ahead |
 | REQ-004 | Health metrics | Documented | Not implemented | Docs ahead |
 | REQ-005 | Event categories | Documented | Not implemented | Docs ahead |
+| REQ-006 | Plugin-style providers (workspace crates) | Documented | Not implemented | Docs ahead |
+| REQ-007 | HTTP REST task provider | Documented | Not implemented | Docs ahead |
+| REQ-008 | In-process library task provider | Documented | Not implemented | Docs ahead |
 
 ## Known code issues (not requirements)
 

@@ -18,6 +18,10 @@ External parts:
 - **ActivityWatch server (`aw-server`)**: receives the bucket and heartbeats over HTTP.
 - **aw-qt**: optional. It starts the daemon when listed in its `autostart_modules`.
 
+### Planned: provider seam (REQ-006)
+
+The watcher will stop calling `task` directly. It will call a `TaskProvider` chosen from config, and the CLI, HTTP (REQ-007) and library (REQ-008) providers will sit behind it. This section describes the current code; it will be updated when REQ-006 lands.
+
 ## Startup
 
 ```mermaid
