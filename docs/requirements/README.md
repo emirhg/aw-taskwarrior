@@ -1,0 +1,13 @@
+# Requirements
+
+Each requirement has its own file, written from [_template.md](_template.md). Write or update the requirement here before writing code for it.
+
+| ID | Title | Status |
+|----|-------|--------|
+| [REQ-001](REQ-001-testing-flag.md) | `--testing` flag using a `_testing` bucket suffix | Documented, not implemented |
+| [REQ-002](REQ-002-cli-overrides.md) | CLI arguments for host, port and API key override | Documented, not implemented |
+| [REQ-003](REQ-003-log-levels.md) | Structured logging with configurable levels | Documented, not implemented |
+| [REQ-004](REQ-004-health-metrics.md) | Performance metrics and health reporting | Documented, not implemented |
+| [REQ-005](REQ-005-event-categories.md) | Event categorization by task type or project | Documented, not implemented |
+
+Status is mirrored in [../STATUS.md](../STATUS.md).
