@@ -13,6 +13,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `cargo clippy --all-targets` must not introduce new warnings in code you touch.
 - `cargo test` must pass. Add unit tests for new logic in the same module, following the existing `#[cfg(test)]` pattern.
 
+## Documentation-first workflow (required)
+
+- Reference docs live in `docs/`: `architecture.md`, `modules.md`, `dependencies.md`, `requirements/`, and `STATUS.md`.
+- Every new requirement is written or updated in `docs/requirements/` (copy `_template.md`) and committed before any code commit for that requirement.
+- Code must never be ahead of docs. Temporary drift is allowed only when docs are ahead and the item is listed in `docs/STATUS.md`.
+- A change that adds, removes, or renames a module, public function, struct, or crate must update `docs/modules.md` or `docs/dependencies.md` and their Mermaid diagrams in the same change.
+- When code for a requirement lands, set its status in `docs/requirements/` and `docs/STATUS.md` in that same commit.
+- Diagrams are Mermaid code blocks. Do not add image files.
+
 ## Project notes
 
 - The daemon polls TaskWarrior with `task rc.hooks:off +ACTIVE export`. Keep `rc.hooks:off` so the query does not trigger user hooks.
