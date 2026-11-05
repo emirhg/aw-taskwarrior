@@ -12,7 +12,6 @@ A standalone Rust daemon that tracks TaskWarrior activity into ActivityWatch, re
 
 **Build and run:**
 ```bash
-cd rust-client
 cargo build --release
 ./target/release/aw-taskwarrior  # Start the daemon, press Ctrl-C to stop
 ```
@@ -30,7 +29,6 @@ The daemon will create an ActivityWatch bucket called `aw-watcher-taskwarrior_{y
 ## Building
 
 ```bash
-cd rust-client
 cargo build --release
 # Binary location: target/release/aw-taskwarrior (3.6 MB, fully optimized)
 ```
