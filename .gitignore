@@ -4,3 +4,6 @@ Cargo.lock
 *.swo
 *~
 .DS_Store
+
+# Personal Claude instructions (private, not shared)
+CLAUDE.local.md
