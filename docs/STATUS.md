@@ -20,6 +20,7 @@ Rules:
 | REQ-007 | HTTP REST task provider | Documented | Not implemented | Docs ahead |
 | REQ-008 | In-process library task provider | Documented | Not implemented | Docs ahead |
 | REQ-009 | ActivityWatch config convention | Implemented | Implemented | In sync |
+| REQ-010 | Server-side task filtering in task-rest | Documented | Not implemented | Docs ahead |
 
 ## Known code issues (not requirements)
 

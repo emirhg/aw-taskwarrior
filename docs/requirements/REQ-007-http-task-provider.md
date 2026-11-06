@@ -1,42 +1,148 @@
-# REQ-007: HTTP REST task provider
+# REQ-007: HTTP REST task provider (task-rest)
 
 - **Status:** Documented, not implemented
-- **Added:** 2026-11-05
+- **Added:** 2026-11-05 (contract verified against a live task-rest instance, 2026-11-06)
 - **Owner:** maintainer
 
 ## Rationale
 
-An external service will expose the active task over a REST API. A consumer provider lets the watcher use that service without changing the poll loop. The service is not yet built, so this page records the intended shape, and the contract details stay TBD until the API exists.
+The `task-rest` service (`~/workspace/task-rest`, Flask + tasklib around TaskWarrior) exposes the user's tasks over HTTP. A second provider lets the watcher read the active task from that service, through the same `TaskProvider` seam as the CLI provider (REQ-006). The watcher's poll loop does not change.
 
 ## Design
 
-- New crate `crates/aw-taskwarrior-provider-http` implementing `TaskProvider` (depends on REQ-006). Feature `provider-http` in the watcher.
-- `NAME = "http"`.
-- Blocking HTTP client, matching the rest of the daemon. Client crate choice is recorded in [../dependencies.md](../dependencies.md) when made.
-- Settings under `[aw-taskwarrior.providers.http]` in `aw-taskwarrior.toml` (REQ-009):
+### Crate and wiring
+
+- New crate `crates/aw-taskwarrior-provider-http`, implementing `TaskProvider` (REQ-006).
+- `NAME = "http"`; `create(settings)` as in the CLI provider.
+- Watcher: feature `provider-http`, on by default, plus one `cfg` arm in `providers.rs`. The default provider stays `cli`.
+- HTTP client: `reqwest` 0.11 in blocking mode, with `json` and `rustls-tls-native-roots`. These are the version and features `aw-client-rust` already uses, so no new crate is compiled in.
+
+### Settings
+
+Stored in the existing daemon config (REQ-009), under the provider's table:
 
 ```toml
 [aw-taskwarrior]
 provider = "http"
 
 [aw-taskwarrior.providers.http]
-base_url = "https://example.invalid"   # TBD: API host
-timeout_seconds = 5                    # TBD default
-api_key = "..."                        # TBD: auth scheme (header name, token source)
+base_url = "http://127.0.0.1:5000"   # required; http or https; no user info; a path prefix is allowed
+username = "dev"                      # required
+password = "password"                 # required; never logged
+timeout_seconds = 5                   # optional, positive integer, default 5
 ```
 
-- Request and response shapes are TBD until the API contract exists. Mapping rules:
-  - A successful response with no active task maps to `ActiveTask::default_task()`.
-  - Transport errors map to `ProviderError::Unavailable`; HTTP timeouts to `Timeout`; unexpected bodies to `InvalidResponse`.
-- Secrets (`api_key`) must not be logged.
+- Missing or invalid values fail at startup with `InvalidConfig` naming the key. `create` does no network I/O.
+- The password is stored in plain text in the same file as the ActivityWatch `api_key`. The file should be readable only by its owner. This is a deliberate choice.
+
+### API contract (task-rest, verified)
+
+| Step | Request | Success | Failure seen on the live API |
+|------|---------|---------|------------------------------|
+| Authenticate | `GET /auth`, HTTP Basic (`username`, `password`) | `200`, body `{"token": "<JWT>"}` | Wrong password: `401`, plain-text body `Could not verify`, header `WWW.Authentification` |
+| List tasks | `GET /` with header `x-access-tokens: <JWT>` | `200`, body `{"tasks": [...]}` | No token, bad token or expired token: `401`, plain-text `Could not verify` |
+
+- The token lifetime is set per user on the server (`TOKEN_EXP`, minutes). The dev user has 999 minutes, and the `exp` claim is in the token.
+- `GET /` has no filter parameters. It returns **every** task, including completed and deleted ones. Measured on the development data: 581 tasks, about 1.6 MB (see [REQ-010](REQ-010-task-rest-attribute-filter.md)).
+- Each `GET /` runs a full `task export` on the server.
+
+Captured task object (a pending task with a start date; field values from the test data):
+
+```json
+{
+  "description": "A pending started",
+  "entry": "Thu, 05 Nov 2026 23:27:01 -0600",
+  "id": 1,
+  "modified": "Thu, 05 Nov 2026 23:27:01 -0600",
+  "start": "Thu, 05 Nov 2026 23:27:01 -0600",
+  "status": "pending",
+  "urgency": 4.0,
+  "uuid": "1270e71e-3013-4514-8653-98d78057c138"
+}
+```
+
+Observed rules for task objects:
+- Dates use RFC 2822 text with a numeric offset (`-0600` on the test server). Parse with `chrono::DateTime::parse_from_rfc2822`.
+- `None` values and empty lists are **omitted**. A task with no start date has no `start` key. A task with no project has no `project` key. A task with no tags has no `tags` key.
+- `status` is `pending`, `completed` or `deleted`. Completed and deleted tasks are returned too.
+- Completing a task removes its `start`, so a completed task never has a `start` key.
+
+Errors:
+- Bad input to `POST /` returns `400` with `{"message": {"description": "...", "type": "error"}}`.
+- An unknown uuid returns `404` with the same `message` shape.
+- A TaskWarrior error on a read is returned in the `message` shape too. The provider must handle any non-2xx response that carries a `message` object, and a `200` that has no `tasks` key and a `message` of type `error`.
+
+### Mapping to the active task
+
+Active means `status == "pending"` and a `start` value, the same meaning as TaskWarrior's `+ACTIVE`. From the list:
+
+1. Keep only active tasks.
+2. Choose the one with the latest `start`. Ties are broken by the higher `id`. An unparseable `start` sorts last.
+3. Map to `ActiveTask`: `uuid`, `title` = `description`, `project` = the `project` value or `"No project"`, `tags` = the `tags` value or an empty list.
+4. No active task: `ActiveTask::default_task()`.
+
+The client-side filter is the only filter until REQ-010 exists. Its cost is that every poll downloads the full list.
+
+### Authentication flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant W as watcher
+    participant P as HttpProvider
+    participant R as task-rest
+
+    W->>P: active_task()
+    alt no cached token
+        P->>R: GET /auth (Basic username:password)
+        R-->>P: 200 {"token": JWT}
+        P->>P: cache token
+    end
+    P->>R: GET / (x-access-tokens: JWT)
+    alt 200 with tasks
+        R-->>P: {"tasks": [...]}
+        P->>P: keep pending tasks with start, choose latest
+        P-->>W: ActiveTask
+    else 401 (token expired or rejected)
+        R-->>P: 401
+        P->>P: clear cached token
+        P->>R: GET /auth again
+        R-->>P: 200 {"token": JWT} or 401
+        P->>R: GET / once more
+        R-->>P: 200 or 401
+        P-->>W: ActiveTask, or Unavailable if still 401
+    end
+```
+
+### Error mapping
+
+| Condition | Result |
+|-----------|--------|
+| Timeout (`timeout_seconds`) | `ProviderError::Timeout` |
+| Connection refused, DNS, TLS, other transport error | `Unavailable(...)` |
+| `401` after one re-authentication | `Unavailable("authentication rejected: check username and password")` |
+| Non-2xx with a `message` object, or `200` with `message.type == "error"` and no `tasks` | `Unavailable(message.description)` |
+| Body is not JSON, or `tasks` is not a list | `InvalidResponse(...)` |
+
+- Secrets (`password`, token) never appear in logs or in error text. Errors include only the status code and the server's `message`.
+- Credentials are never placed in the URL.
+
+### Limits
+
+- TLS uses the system trust store only. Self-signed HTTPS certificates are not supported.
+- The client-side filter downloads the whole list on every poll. REQ-010 removes this cost.
 
 ## Acceptance criteria
 
-- [ ] With `provider = "http"` and the feature enabled, the watcher reads the active task from the API.
-- [ ] Unreachable API: the last known task is reused and the error is logged.
-- [ ] Missing or invalid `[aw-taskwarrior.providers.http]` settings fail at startup with `InvalidConfig`.
-- [ ] `api_key` never appears in logs.
+- [ ] With `provider = "http"` and the feature enabled, the watcher reads the active task from task-rest.
+- [ ] The selection rule matches `task +ACTIVE` on the same data: pending, with a start, latest start first.
+- [ ] A token rejected with `401` is replaced once, and the request is retried.
+- [ ] Unreachable service: the last known task is reused and the error is logged.
+- [ ] Wrong password: `Unavailable`, with the message `authentication rejected`. The password is not in the error.
+- [ ] Missing or invalid `[aw-taskwarrior.providers.http]` settings fail at startup with `InvalidConfig` naming the key.
+- [ ] `base_url` containing user info is rejected at startup.
+- [ ] The tests run against the captured responses (fixtures from the live API) and against a loopback mock. No other network access.
 
 ## Code references
 
-- Implemented in: (none yet; blocked on the external API contract)
+- Implemented in: (none yet)

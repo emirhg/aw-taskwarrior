@@ -13,5 +13,6 @@ Each requirement has its own file, written from [_template.md](_template.md). Wr
 | [REQ-007](REQ-007-http-task-provider.md) | HTTP REST task provider | Documented, not implemented |
 | [REQ-008](REQ-008-library-task-provider.md) | In-process library task provider | Documented, not implemented |
 | [REQ-009](REQ-009-activitywatch-config-convention.md) | Follow the ActivityWatch config convention; server settings from aw-client.toml | Implemented |
+| [REQ-010](REQ-010-task-rest-attribute-filter.md) | Server-side task filtering in task-rest | Documented, not implemented |
 
 Status is mirrored in [../STATUS.md](../STATUS.md).
