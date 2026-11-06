@@ -53,6 +53,31 @@ Then you can run the daemon from anywhere:
 aw-taskwarrior
 ```
 
+### Building for Windows 11 (cross-compiling from Linux)
+
+The Windows build is made on Linux with the MinGW-w64 toolchain. See [REQ-011](docs/requirements/REQ-011-windows-cross-build.md).
+
+Prerequisites:
+- MinGW-w64 GCC (`mingw-w64-gcc`; the `x86_64-w64-mingw32-gcc` command must exist).
+- A Rust toolchain with the `x86_64-pc-windows-gnu` standard library. The distribution Rust package may not include it. The build used a separate rustup install of Rust 1.99.0, kept outside `PATH`, in `~/.local/share/rust-cross/`. Add the target with `rustup target add x86_64-pc-windows-gnu --toolchain <version>`.
+- Network access for the first build, because the Windows-only crates are downloaded then.
+
+```bash
+WINDOWS_TOOLCHAIN_BIN=~/.local/share/rust-cross/rustup/toolchains/1.99.0-x86_64-unknown-linux-gnu/bin \
+  scripts/build-windows.sh
+# Output: target/windows/x86_64-pc-windows-gnu/release/aw-taskwarrior.exe
+```
+
+The script checks the linker and the Windows standard library first. Its build directory (`target/windows`) is separate from the Linux build. The Windows binary imports only Windows system DLLs.
+
+**Running on Windows 11**
+- Settings are read from `%APPDATA%\activitywatch\aw-client\aw-client.toml` and `%APPDATA%\activitywatch\aw-taskwarrior\aw-taskwarrior.toml`.
+- The `task` command must be `task.exe` on `PATH`.
+- Stop the daemon with Ctrl+C.
+- aw-qt finds `aw-taskwarrior.exe` by name if it is on `PATH` or in the folder aw-qt searches.
+
+This was tested by building the Windows test binaries and running them under Wine. It has not been run on a real Windows 11 machine.
+
 ## Configuration
 
 The daemon works **out of the box with zero configuration**. All settings have sensible hardcoded defaults.

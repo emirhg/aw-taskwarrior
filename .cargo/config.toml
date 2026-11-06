@@ -1,0 +1,4 @@
+# Cross-compiling for Windows 11 (see docs/requirements/REQ-011-windows-cross-build.md).
+# Applies only to builds with --target x86_64-pc-windows-gnu.
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"

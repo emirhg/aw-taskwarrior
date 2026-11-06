@@ -1,6 +1,6 @@
 # REQ-011: Cross-compile aw-taskwarrior for Windows 11 from Linux
 
-- **Status:** Documented, not implemented
+- **Status:** Implemented
 - **Added:** 2026-11-06
 - **Owner:** maintainer
 
@@ -41,17 +41,22 @@ The distribution Rust package (Arch `rust`) does not ship the Windows standard l
 
 ## Verification and limits
 
-- Verified by the build: the binary is a Windows PE executable and links only system DLLs (to be confirmed with the import list).
-- Verified by Wine (best effort): the executable starts and logs the chosen provider, using a scratch Wine prefix and a closed ActivityWatch port.
-- Not verified: a run on a real Windows 11 machine, autostart from aw-qt, and the Windows config folder used by ActivityWatch.
+Verified on 2026-11-06 with Rust 1.99.0 (isolated rustup install) and MinGW-w64 GCC 16.2.0:
+- The release build succeeds. The output is `PE32+ executable ... (console), x86-64`, 4.2 MB.
+- The import list has only Windows system DLLs (kernel32, ws2_32, bcrypt, crypt32, advapi32, shell32, ntdll, combase, and the `api-ms-win-*` API sets). No `libgcc` or `libwinpthread`.
+- The Linux build still passes its tests (`cargo test --offline`, 31 + 11 + 36 passing, 1 live test ignored) and `cargo fmt --check` is clean.
+- Under Wine (scratch prefix, closed ActivityWatch port 5699): the executable reads `%APPDATA%\activitywatch\aw-client\aw-client.toml`, logs `Using task provider 'cli'`, and retries the bucket on the closed port.
+- The unit-test binaries for the Windows target build and pass under Wine: watcher 31, CLI provider 11, HTTP provider 36 (1 live test ignored), core 0.
+
+Not verified: a run on a real Windows 11 machine, autostart from aw-qt, and the folder ActivityWatch for Windows uses for `aw-client.toml`.
 
 ## Acceptance criteria
 
-- [ ] `scripts/build-windows.sh` produces `aw-taskwarrior.exe` on a Linux machine with the prerequisites.
-- [ ] The Linux build and tests still pass, and the Linux `target/` cache is not invalidated by the Windows build.
-- [ ] The import list has no MinGW runtime DLLs (for example `libgcc` or `libwinpthread`), or the docs say which ones are required.
-- [ ] The Windows build is documented in the README, with the runtime notes above.
+- [x] `scripts/build-windows.sh` produces `aw-taskwarrior.exe` on a Linux machine with the prerequisites.
+- [x] The Linux build and tests still pass, and the Linux `target/` cache is not invalidated by the Windows build (separate `target/windows`).
+- [x] The import list has no MinGW runtime DLLs.
+- [x] The Windows build is documented in the README, with the runtime notes above.
 
 ## Code references
 
-- Implemented in: (none yet)
+- Implemented in: `scripts/build-windows.sh`, `.cargo/config.toml` (linker for `x86_64-pc-windows-gnu`), README section "Building for Windows 11", `CLAUDE.md` "Windows build".

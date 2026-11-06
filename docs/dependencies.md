@@ -80,6 +80,17 @@ flowchart LR
     watcher --> gh
 ```
 
+## Build-time dependencies
+
+| Dependency | Required for | Notes |
+|------------|--------------|-------|
+| Rust 1.99.0 (Arch `rust` package used for Linux builds) | All builds | Same compiler version for the isolated Windows toolchain |
+| `x86_64-pc-windows-gnu` Rust standard library | Windows build (`scripts/build-windows.sh`) | Not in the Arch package. Use an isolated rustup install (kept outside `PATH`, in `~/.local/share/rust-cross/`). |
+| `mingw-w64-gcc` (`x86_64-w64-mingw32-gcc`) | Windows build | Linker for `x86_64-pc-windows-gnu`, set in `.cargo/config.toml` |
+| Network on the first Windows build | Windows build | Windows-only crates (`windows-sys`, `schannel`, `winreg`, ...) are not in the local cache |
+
+The Windows binary imports only Windows system DLLs. No MinGW runtime DLLs are needed on the target machine.
+
 ## Runtime dependencies
 
 | Dependency | Required | Used for | Failure behavior |
