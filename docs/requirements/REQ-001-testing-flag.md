@@ -12,6 +12,7 @@ Testing the aw-qt integration currently writes into the real bucket. A `--testin
 
 - Add a `--testing` flag in `main.rs`. When set, `AwTaskWatcherClient::new` appends `_testing` to the bucket id.
 - Affects: `main.rs`, `activitywatch.rs` (bucket id construction). See [../modules.md](../modules.md).
+- With the flag, `config::load(true)` is used (REQ-009), so the `[aw-taskwarrior-testing]` and `[server-testing]` config sections apply.
 - No new dependency; see [../dependencies.md](../dependencies.md). Argument parsing is shared with REQ-002.
 
 ## Acceptance criteria

@@ -11,7 +11,7 @@ Running against a non-default ActivityWatch server currently needs a config file
 ## Design
 
 - Parse `--host`, `--port` and `--api-key` in `main.rs`. Values override the loaded config.
-- Precedence: CLI argument, then config file, then built-in default.
+- Precedence: CLI argument, then config file, then built-in default. For host and port, the "config file" is `aw-client.toml` (REQ-009), so the flags override the ActivityWatch client config for this run only.
 - Affects: `main.rs`, `config.rs`. See [../modules.md](../modules.md).
 - Needs an argument parser crate or hand-written parsing; record the choice in [../dependencies.md](../dependencies.md) when made.
 
