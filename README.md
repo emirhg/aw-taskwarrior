@@ -127,6 +127,47 @@ offline_pulsetime_seconds = 43200
 timeout_seconds = 5          # max time for one `task export` call
 ```
 
+### Complete example
+
+Copy these two files to get a full configuration. Every key is optional: a missing key uses the default shown in the comment. Lines starting with `#` are not active.
+
+`~/.config/activitywatch/aw-client/aw-client.toml` (shared with ActivityWatch; this daemon only reads `[server]`):
+
+```toml
+[server]
+hostname = "127.0.0.1"   # default
+port = "5600"            # default; a string or an integer both work
+
+[client]
+#commit_interval = 10    # read by ActivityWatch clients, ignored here
+```
+
+`~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml`:
+
+```toml
+[aw-taskwarrior]
+# Where the active task comes from: "cli" (the `task` command) or "http" (task-rest).
+provider = "cli"                  # default
+
+poll_interval_seconds = 5         # default: how often to read the active task
+offline_tag = "OFFLINE"           # default: tasks with this tag get the long pulsetime
+online_pulsetime_seconds = 120    # default
+offline_pulsetime_seconds = 43200 # default (12 h)
+#api_key = "your-api-key"         # only if ActivityWatch requires one
+
+# Provider settings. The table for the provider you use is read; the other is ignored.
+[aw-taskwarrior.providers.cli]
+timeout_seconds = 5               # default: max time for one `task export`
+
+[aw-taskwarrior.providers.http]
+#base_url = "http://127.0.0.1:5000"  # required when provider = "http"
+#username = "dev"                    # optional: set both or neither (local mode)
+#password = "password"
+#timeout_seconds = 5
+```
+
+To use task-rest instead of the `task` command, change the first line of `[aw-taskwarrior]` to `provider = "http"` and uncomment the `base_url` line (and `username` and `password`, if task-rest runs with authentication). See the next section for details.
+
 ### Reading tasks from task-rest (HTTP provider)
 
 To read the active task from the task-rest API instead of the `task` command, set the provider and its settings in `aw-taskwarrior.toml`:
