@@ -27,12 +27,13 @@ provider = "http"
 
 [aw-taskwarrior.providers.http]
 base_url = "http://127.0.0.1:5000"   # required; http or https; no user info; a path prefix is allowed
-username = "dev"                      # required
-password = "password"                 # required; never logged
+username = "dev"                      # optional; set together with password, or omit both (REQ-012)
+password = "password"                 # optional; never logged
 timeout_seconds = 5                   # optional, positive integer, default 5
 ```
 
 - Missing or invalid values fail at startup with `InvalidConfig` naming the key. `create` does no network I/O.
+- Only one of `username` and `password` is an error. Neither set means task-rest local mode (REQ-012): no `/auth`, no token.
 - The password is stored in plain text in the same file as the ActivityWatch `api_key`. The file should be readable only by its owner. This is a deliberate choice.
 
 ### API contract (task-rest, verified)
@@ -43,7 +44,8 @@ timeout_seconds = 5                   # optional, positive integer, default 5
 | List tasks | `GET /` with header `x-access-tokens: <JWT>` | `200`, body `{"tasks": [...]}` | No token, bad token or expired token: `401`, plain-text `Could not verify` |
 
 - The token lifetime is set per user on the server (`TOKEN_EXP`, minutes). The dev user has 999 minutes, and the `exp` claim is in the token.
-- `GET /` has no filter parameters. It returns **every** task, including completed and deleted ones. Measured on the development data: 581 tasks, about 1.6 MB (see [REQ-010](REQ-010-task-rest-attribute-filter.md)).
+- `GET /` without parameters returns **every** task, including completed and deleted ones (581 tasks, about 1.6 MB on the development data). With `?status=pending&start.any=` it returns only the active tasks (see [REQ-010](REQ-010-task-rest-attribute-filter.md)); the provider always sends that filter.
+- Local mode (task-rest `--no-auth`): no `/auth` route and no token. See [REQ-012](REQ-012-http-provider-optional-auth.md).
 - Each `GET /` runs a full `task export` on the server.
 
 Captured task object (a pending task with a start date; field values from the test data):
@@ -150,7 +152,7 @@ sequenceDiagram
 ### Limits
 
 - TLS uses the system trust store only. Self-signed HTTPS certificates are not supported.
-- The client-side filter downloads the whole list on every poll. REQ-010 removes this cost.
+- Each poll sends the server-side filter `?status=pending&start.any=` (REQ-010), so only active tasks are transferred. The client-side selection rule still runs on the result as a safety net.
 
 ## Acceptance criteria
 
