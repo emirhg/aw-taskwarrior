@@ -1,6 +1,6 @@
 # Modules
 
-The repository is a Cargo workspace (`crates/*`) with three crates. The watcher binary (`aw-taskwarrior`) contains five modules. The provider crate and the core crate hold the task-source logic and the shared interface.
+The repository is a Cargo workspace (`crates/*`) with four crates. The watcher binary (`aw-taskwarrior`) contains five modules. The provider crate and the core crate hold the task-source logic and the shared interface.
 
 ## Crate dependency graph
 
@@ -8,9 +8,12 @@ The repository is a Cargo workspace (`crates/*`) with three crates. The watcher 
 flowchart TD
     watcher[aw-taskwarrior<br/>watcher binary] --> core[aw-taskwarrior-core]
     watcher -. feature provider-cli, default .-> cli[aw-taskwarrior-provider-cli]
+    watcher -. feature provider-http, default .-> http[aw-taskwarrior-provider-http]
     cli --> core
+    http --> core
     watcher -.-> aw[(aw-client-rust, aw-models)]
     cli -.-> tw[(task CLI)]
+    http -.-> rest[(task-rest API over HTTP)]
 ```
 
 `aw-taskwarrior-core` has no dependencies. The watcher never imports provider internals; it reaches a provider only through `providers.rs` and the `TaskProvider` trait.
@@ -67,6 +70,24 @@ flowchart TD
 
 - Tests (11): empty array, single task, missing project, most recent start wins, unparseable start sorts last, timestamp format, invalid timestamp, and `create` with no settings, a valid timeout, a non-positive timeout, and a non-integer timeout.
 
+## aw-taskwarrior-provider-http (`crates/aw-taskwarrior-provider-http/src/lib.rs`)
+
+**Responsibility:** the HTTP provider for task-rest (REQ-007). Authenticates with `GET /auth` (Basic), lists tasks with `GET /` (`x-access-tokens`), and picks the active task on the client side.
+
+| Item | Kind | Notes |
+|------|------|-------|
+| `NAME` | const | `"http"`. Used in config (`provider = "http"`) and logs. |
+| `create(settings: Option<&toml::Table>)` | fn | Builds the provider from `[aw-taskwarrior.providers.http]`. Keys: `base_url` (required; http or https; no user info, query or fragment; a path prefix is kept), `username` and `password` (required, non-empty), `timeout_seconds` (positive integer, default 5). Any invalid value gives `InvalidConfig` naming the key. No network I/O. |
+| `HttpProvider` | struct | Holds the blocking client, the base URL, the credentials and the cached JWT (`Mutex<Option<String>>`). Its `Debug` output hides the password and token. |
+| `HttpProvider::active_task` (via trait) | fn | Uses the cached token or authenticates. On `401`, re-authenticates once and retries. Second `401` gives `Unavailable("authentication rejected: ...")`. |
+| `select_active()` | fn (private) | Keeps tasks with `status == "pending"` and a `start`. Picks the latest start; ties go to the higher `id`; unparseable starts sort last. No match gives `ActiveTask::default_task()`. |
+| `read_active_task()` | fn (private) | Maps a response: `401` to auth rejected; a `message` object with `type == "error"` to `Unavailable(description)`; other non-2xx to `Unavailable("HTTP <code>")`; non-JSON on 2xx or a missing `tasks` list to `InvalidResponse`. |
+| `ApiTask` | struct (private) | One task from task-rest: `id`, `description`, `status`, `start` (RFC 2822 text), `project`, `tags`, `uuid`. Missing optional fields default. |
+| `live_task_rest_returns_active_task` | test (ignored) | Needs a running task-rest and `TASK_REST_URL`, `TASK_REST_USER`, `TASK_REST_PASSWORD`. Run with `cargo test -p aw-taskwarrior-provider-http -- --ignored --nocapture`. |
+
+- Tests (28, plus the ignored live test): settings validation (required keys, scheme, user info, query, empty values, timeout, path prefix, Debug hides secrets); RFC 2822 offsets resolve to the same instant; selection on the captured fixture (`tests/fixtures/task_list.json`, real task-rest responses): latest start with id tie-break, active set, project and tags mapping, pending without start, completed or deleted tasks, empty list, unparseable start; HTTP flow against a loopback mock server: auth then list with the token header, cached token reuse, expired token replaced and retried, second rejection with no secrets in the error, wrong password, error message bodies, non-JSON bodies, `500` without JSON, connection refused, timeout.
+- The mock server binds only to `127.0.0.1` on port 0. The test suite makes no other network calls.
+
 ---
 
 ## aw-taskwarrior (watcher) (`crates/aw-taskwarrior/src/main.rs`)
@@ -108,7 +129,8 @@ flowchart TD
 | `build(&Config)` | fn | Matches `cfg.provider`. Each provider is one `cfg(feature)` arm. An unknown or not-compiled name gives `Err("provider '<name>' is not available; rebuild with the matching feature")`. |
 | `resolve_task(&dyn TaskProvider, &mut ActiveTask)` | fn | On success, updates `last_known` and returns the task. On error, logs it and returns `last_known`. |
 
-- Tests (5): success updates last known, failure returns last known, failure before any success returns the default, unknown provider is an error, default provider builds `cli`.
+- `build()` also has an `http` arm (feature `provider-http`) that passes `[aw-taskwarrior.providers.http]` to `aw_taskwarrior_provider_http::create`.
+- Tests (6): success updates last known, failure returns last known, failure before any success returns the default, unknown provider is an error, `http` without settings names `base_url`, default provider builds `cli`.
 
 ### activitywatch.rs
 
@@ -140,10 +162,11 @@ flowchart TD
 
 ## Test summary
 
-41 unit tests, all run with `cargo test` from the repository root:
+70 unit tests, all run with `cargo test` from the repository root, plus 1 live test that is ignored by default:
 
 | Crate | Tests |
 |-------|-------|
 | aw-taskwarrior-core | 0 |
 | aw-taskwarrior-provider-cli | 11 |
-| aw-taskwarrior (watcher) | 30 (config 22, activitywatch 3, providers 5) |
+| aw-taskwarrior-provider-http | 28 (+1 ignored live test) |
+| aw-taskwarrior (watcher) | 31 (config 22, activitywatch 3, providers 6) |

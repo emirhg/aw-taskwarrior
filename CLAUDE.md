@@ -28,6 +28,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `aw-taskwarrior-core` must keep zero dependencies.
 - The watcher (`crates/aw-taskwarrior`) must not import provider internals. It uses only `providers::build`, `TaskProvider`, and `ActiveTask`.
 - A new provider needs a requirement in `docs/requirements/` first, then its own crate, a feature, and one `cfg` arm in `crates/aw-taskwarrior/src/providers.rs`.
+- Never log, print, or put in an error message the HTTP provider's password or JWT. Errors carry only the status code and the server's message.
+- HTTP provider tests may only use the loopback mock server (`127.0.0.1`) or the captured fixture. The live test against task-rest is `#[ignore]` and runs only on request.
 
 ## Project notes
 

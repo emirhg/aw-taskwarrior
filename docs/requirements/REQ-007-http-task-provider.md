@@ -1,6 +1,6 @@
 # REQ-007: HTTP REST task provider (task-rest)
 
-- **Status:** Documented, not implemented
+- **Status:** Implemented
 - **Added:** 2026-11-05 (contract verified against a live task-rest instance, 2026-11-06)
 - **Owner:** maintainer
 
@@ -134,15 +134,16 @@ sequenceDiagram
 
 ## Acceptance criteria
 
-- [ ] With `provider = "http"` and the feature enabled, the watcher reads the active task from task-rest.
-- [ ] The selection rule matches `task +ACTIVE` on the same data: pending, with a start, latest start first.
-- [ ] A token rejected with `401` is replaced once, and the request is retried.
-- [ ] Unreachable service: the last known task is reused and the error is logged.
-- [ ] Wrong password: `Unavailable`, with the message `authentication rejected`. The password is not in the error.
-- [ ] Missing or invalid `[aw-taskwarrior.providers.http]` settings fail at startup with `InvalidConfig` naming the key.
-- [ ] `base_url` containing user info is rejected at startup.
-- [ ] The tests run against the captured responses (fixtures from the live API) and against a loopback mock. No other network access.
+- [x] With `provider = "http"` and the feature enabled, the watcher reads the active task from task-rest. Verified against the live API: the live test returned the expected task (`F work with tags`).
+- [x] The selection rule matches `task +ACTIVE` on the same data: pending, with a start, latest start first. Verified: the API's pending-with-start set equals TaskWarrior's `+ACTIVE` set (`A`, `E`, `F`).
+- [x] A token rejected with `401` is replaced once, and the request is retried. Covered by a mock-server test; the real server returns `401` for an expired token (checked with a forged token).
+- [x] Unreachable service: the last known task is reused and the error is logged (the same `resolve_task` policy as the CLI provider).
+- [x] Wrong password: `Unavailable`, with the message `authentication rejected`. The password is not in the error (test).
+- [x] Missing or invalid `[aw-taskwarrior.providers.http]` settings fail at startup with `InvalidConfig` naming the key. Verified at runtime: a missing `password` and a `base_url` with user info both stopped the daemon with the key named.
+- [x] `base_url` containing user info is rejected at startup (test and runtime).
+- [x] The tests run against the captured responses (`tests/fixtures/task_list.json`, from the live API) and against a loopback mock. No other network access.
 
 ## Code references
 
-- Implemented in: (none yet)
+- Implemented in: `crates/aw-taskwarrior-provider-http/src/lib.rs` (`create`, `HttpProvider`, `select_active`, `read_active_task`), `crates/aw-taskwarrior/src/providers.rs` (`http` arm), `crates/aw-taskwarrior/Cargo.toml` (feature `provider-http`), `tests/fixtures/task_list.json`.
+- Verified against task-rest at `~/workspace/task-rest` (Flask, pinned dependencies from `Pipfile.lock`, TaskWarrior 3.5.0), in a scratch copy. The task-rest repository was not modified.

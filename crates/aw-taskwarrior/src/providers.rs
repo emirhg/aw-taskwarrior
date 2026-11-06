@@ -20,6 +20,14 @@ pub fn build(cfg: &Config) -> Result<Box<dyn TaskProvider>, String> {
                 .and_then(|v| v.as_table());
             aw_taskwarrior_provider_cli::create(settings).map_err(|e| e.to_string())
         }
+        #[cfg(feature = "provider-http")]
+        aw_taskwarrior_provider_http::NAME => {
+            let settings = cfg
+                .providers
+                .get(aw_taskwarrior_provider_http::NAME)
+                .and_then(|v| v.as_table());
+            aw_taskwarrior_provider_http::create(settings).map_err(|e| e.to_string())
+        }
         other => Err(format!(
             "provider '{}' is not available; rebuild with the matching feature",
             other
@@ -114,13 +122,26 @@ mod tests {
     #[test]
     fn test_unknown_provider_is_error() {
         let cfg = Config {
-            provider: "http".to_string(),
+            provider: "no-such-provider".to_string(),
             ..Config::default()
         };
 
         let err = build(&cfg).err().expect("unknown provider must fail");
 
-        assert!(err.contains("'http' is not available"));
+        assert!(err.contains("'no-such-provider' is not available"));
+    }
+
+    #[cfg(feature = "provider-http")]
+    #[test]
+    fn test_http_provider_without_settings_names_base_url() {
+        let cfg = Config {
+            provider: "http".to_string(),
+            ..Config::default()
+        };
+
+        let err = build(&cfg).err().expect("http provider needs settings");
+
+        assert!(err.contains("base_url"));
     }
 
     #[cfg(feature = "provider-cli")]

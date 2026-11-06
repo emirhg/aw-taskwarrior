@@ -9,6 +9,7 @@ edition = "2021"
 [workspace.dependencies]
 aw-taskwarrior-core = { path = "crates/aw-taskwarrior-core" }
 aw-taskwarrior-provider-cli = { path = "crates/aw-taskwarrior-provider-cli" }
+aw-taskwarrior-provider-http = { path = "crates/aw-taskwarrior-provider-http" }
 aw-client-rust = { git = "https://github.com/ActivityWatch/aw-server-rust", rev = "2875df5" }
 aw-models = { git = "https://github.com/ActivityWatch/aw-server-rust", rev = "2875df5" }
 serde = { version = "1", features = ["derive"] }
@@ -18,6 +19,7 @@ dirs = "5"
 ctrlc = "3"
 chrono = { version = "0.4", features = ["serde"] }
 gethostname = "0.4"
+reqwest = { version = "0.11", default-features = false, features = ["blocking", "json", "rustls-tls-native-roots"] }
 
 [profile.release]
 opt-level = 3

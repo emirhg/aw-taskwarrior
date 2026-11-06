@@ -21,7 +21,9 @@ External parts:
 
 ### Provider seam (REQ-006)
 
-The watcher never calls `task` itself. It holds a `Box<dyn TaskProvider>` built from config (`provider = "cli"` by default). The provider crate is selected by a Cargo feature. Future HTTP (REQ-007) and library (REQ-008) providers plug into the same seam. The seam is documented in the requirement; the HTTP and library providers are not implemented yet.
+The watcher never calls `task` itself. It holds a `Box<dyn TaskProvider>` built from config (`provider = "cli"` by default; `provider = "http"` reads from the task-rest API). Each provider crate is selected by a Cargo feature, and both are on by default. The library provider (REQ-008) will plug into the same seam and is not implemented yet.
+
+The HTTP provider logs in to `GET /auth` with Basic credentials from config, then reads `GET /` with the token. Each poll downloads the whole task list; REQ-010 tracks a server-side filter. See [REQ-007](requirements/REQ-007-http-task-provider.md) for the verified contract.
 
 ## Startup
 

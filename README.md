@@ -102,6 +102,25 @@ offline_pulsetime_seconds = 43200
 timeout_seconds = 5          # max time for one `task export` call
 ```
 
+### Reading tasks from task-rest (HTTP provider)
+
+To read the active task from the task-rest API instead of the `task` command, set the provider and its settings in `aw-taskwarrior.toml`:
+
+```toml
+[aw-taskwarrior]
+provider = "http"
+
+[aw-taskwarrior.providers.http]
+base_url = "http://127.0.0.1:5000"   # http or https; no user info; a path prefix is allowed
+username = "dev"
+password = "password"
+timeout_seconds = 5                  # optional, default 5
+```
+
+- The password is stored in plain text, like `api_key`. Make the file readable only by your user (`chmod 600` on Linux, or a per-user permission on Windows).
+- Each poll downloads the whole task list from task-rest (about 1.6 MB with the development data). A server-side filter is requested in `task-rest/REQUEST.md` (REQ-010).
+- The provider needs a running task-rest. If it is unreachable or the login fails, the last known task is reused and the error is logged.
+
 Unknown keys in `[aw-taskwarrior]` are rejected at startup. In particular, `aw_server_host` and `aw_server_port` are no longer settings here; set the server in `aw-client.toml`. A `[aw-taskwarrior-testing]` section is reserved for the future `--testing` mode.
 
 **Default behavior when no task is active:**
@@ -153,7 +172,7 @@ autostart_modules = ["aw-server", "aw-watcher-afk", "aw-watcher-window", "aw-tas
 
 ## Testing
 
-All 41 unit tests pass, run from the repository root:
+All 70 unit tests pass, run from the repository root:
 
 ```bash
 cargo test
@@ -162,8 +181,16 @@ cargo test
 Tests cover:
 - Config loading, defaults, TOML overlays, provider selection
 - TaskWarrior JSON parsing, task selection by recency, provider settings
+- task-rest responses: selection rules on captured responses, token handling, error mapping (run against a loopback mock, with no external network)
 - Pulsetime selection (online vs. offline logic)
 - Provider selection and the last-known-task fallback
+
+A live test against a running task-rest is ignored by default:
+
+```bash
+TASK_REST_URL=http://127.0.0.1:5000 TASK_REST_USER=dev TASK_REST_PASSWORD=... \
+  cargo test -p aw-taskwarrior-provider-http -- --ignored --nocapture
+```
 
 ## Project Structure
 
@@ -171,6 +198,7 @@ Cargo workspace; all commands run from the repository root.
 
 - `crates/aw-taskwarrior-core/` - Shared `ActiveTask`, `TaskProvider` trait, `ProviderError` (no dependencies)
 - `crates/aw-taskwarrior-provider-cli/` - CLI provider: runs `task` and parses its JSON
+- `crates/aw-taskwarrior-provider-http/` - HTTP provider: reads tasks from the task-rest API
 - `crates/aw-taskwarrior/` - The watcher binary:
   - `crates/aw-taskwarrior/src/main.rs` - Poll loop, signal handling, orchestration
   - `crates/aw-taskwarrior/src/config.rs` - Config struct, TOML loading, defaults
@@ -187,7 +215,8 @@ Cargo workspace; all commands run from the repository root.
 ## Dependencies
 
 - `aw-client-rust` (git, ActivityWatch HTTP client)
-- `aw-taskwarrior-core` and `aw-taskwarrior-provider-cli` (workspace crates)
+- `aw-taskwarrior-core`, `aw-taskwarrior-provider-cli` and `aw-taskwarrior-provider-http` (workspace crates)
+- `reqwest` (blocking HTTP client for the task-rest provider, same version as `aw-client-rust`)
 - `chrono` (datetime parsing/formatting)
 - `serde`/`serde_json` (JSON serialization)
 - `toml` (config file parsing)

@@ -1,0 +1,13 @@
+[package]
+name = "aw-taskwarrior-provider-http"
+version.workspace = true
+edition.workspace = true
+description = "HTTP task provider for aw-taskwarrior: reads the active task from the task-rest API."
+
+[dependencies]
+aw-taskwarrior-core = { workspace = true }
+chrono = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }

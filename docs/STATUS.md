@@ -17,7 +17,7 @@ Rules:
 | REQ-004 | Health metrics | Documented | Not implemented | Docs ahead |
 | REQ-005 | Event categories | Documented | Not implemented | Docs ahead |
 | REQ-006 | Plugin-style providers (workspace crates) | Implemented | Implemented | In sync |
-| REQ-007 | HTTP REST task provider | Documented | Not implemented | Docs ahead |
+| REQ-007 | HTTP REST task provider | Implemented | Implemented | In sync |
 | REQ-008 | In-process library task provider | Documented | Not implemented | Docs ahead |
 | REQ-009 | ActivityWatch config convention | Implemented | Implemented | In sync |
 | REQ-010 | Server-side task filtering in task-rest | Documented | Not implemented | Docs ahead |

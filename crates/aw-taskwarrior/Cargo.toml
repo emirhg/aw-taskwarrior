@@ -8,12 +8,14 @@ name = "aw-taskwarrior"
 path = "src/main.rs"
 
 [features]
-default = ["provider-cli"]
+default = ["provider-cli", "provider-http"]
 provider-cli = ["dep:aw-taskwarrior-provider-cli"]
+provider-http = ["dep:aw-taskwarrior-provider-http"]
 
 [dependencies]
 aw-taskwarrior-core = { workspace = true }
 aw-taskwarrior-provider-cli = { workspace = true, optional = true }
+aw-taskwarrior-provider-http = { workspace = true, optional = true }
 aw-client-rust = { workspace = true }
 aw-models = { workspace = true }
 serde = { workspace = true }
