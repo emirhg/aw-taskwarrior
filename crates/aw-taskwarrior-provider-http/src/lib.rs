@@ -763,6 +763,141 @@ mod tests {
         assert_eq!(provider.active_task().unwrap_err(), ProviderError::Timeout);
     }
 
+    // ---- task-rest HEAD (f7a64b3): newer response shape and status codes ----
+
+    /// Response captured from task-rest HEAD f7a64b3. It has the recurring template and
+    /// instance, a waiting task, and an annotated started task.
+    const FIXTURE_HEAD: &str = include_str!("../tests/fixtures/task_list_head.json");
+
+    #[test]
+    fn test_head_fixture_selects_most_recently_started_task() {
+        // K was started last, after the captured E/F/G starts.
+        let json: Value = serde_json::from_str(FIXTURE_HEAD).unwrap();
+        let tasks: Vec<ApiTask> = serde_json::from_value(json["tasks"].clone()).unwrap();
+        let task = select_active(tasks);
+        assert_eq!(task.title, "K started annotated");
+        assert_eq!(
+            task.uuid.as_deref(),
+            Some("c9dcd2fc-4753-40b1-ae77-4e0fcbc513e0")
+        );
+    }
+
+    #[test]
+    fn test_head_fixture_recurring_template_and_waiting_are_not_active() {
+        let json: Value = serde_json::from_str(FIXTURE_HEAD).unwrap();
+        let tasks: Vec<ApiTask> = serde_json::from_value(json["tasks"].clone()).unwrap();
+        let active: Vec<String> = tasks
+            .iter()
+            .filter(|t| t.status == "pending" && t.start.is_some())
+            .map(|t| t.description.clone())
+            .collect();
+        // Template (status recurring), instance (pending, no start) and waiting (no start)
+        // are all excluded.
+        assert!(!active
+            .iter()
+            .any(|d| d == "H recurring daily" || d == "I waiting"));
+    }
+
+    #[test]
+    fn test_newer_fields_are_ignored() {
+        // annotations, recur, parent, due, mask and imask are not read by the provider.
+        let task = select_from(
+            r#"[{"id":10,"uuid":"u-10","description":"K","status":"pending",
+                 "start":"Thu, 05 Nov 2026 23:40:42 -0600",
+                 "annotations":[{"description":"a note","entry":"Thu, 05 Nov 2026 23:40:42 -0600"}],
+                 "recur":"daily","due":"Fri, 06 Nov 2026 23:00:00 -0600",
+                 "mask":"+","imask":0,
+                 "parent":{"description":"template","uuid":"u-p"}}]"#,
+        );
+        assert_eq!(task.title, "K");
+        assert_eq!(task.project, "No project");
+    }
+
+    #[test]
+    fn test_400_with_message_is_unavailable() {
+        let (url, server) = serve(vec![
+            token_reply("tok-1"),
+            Reply {
+                status: 400,
+                body: r#"{"message":{"description":"Invalid input: bad filter","type":"error"}}"#
+                    .to_string(),
+            },
+        ]);
+        let err = provider_for(&url).active_task().unwrap_err();
+        server.join().unwrap();
+        assert_eq!(
+            err,
+            ProviderError::Unavailable("Invalid input: bad filter".to_string())
+        );
+    }
+
+    #[test]
+    fn test_500_with_message_is_unavailable() {
+        let (url, server) = serve(vec![
+            token_reply("tok-1"),
+            Reply {
+                status: 500,
+                body: r#"{"message":{"description":"TaskWarrior crashed","type":"error"}}"#
+                    .to_string(),
+            },
+        ]);
+        let err = provider_for(&url).active_task().unwrap_err();
+        server.join().unwrap();
+        assert_eq!(
+            err,
+            ProviderError::Unavailable("TaskWarrior crashed".to_string())
+        );
+    }
+
+    #[test]
+    fn test_503_html_reports_status_only() {
+        let (url, server) = serve(vec![
+            token_reply("tok-1"),
+            Reply {
+                status: 503,
+                body: "<html>maintenance</html>".to_string(),
+            },
+        ]);
+        let err = provider_for(&url).active_task().unwrap_err();
+        server.join().unwrap();
+        assert_eq!(err, ProviderError::Unavailable("HTTP 503".to_string()));
+    }
+
+    #[test]
+    fn test_404_html_reports_status_only() {
+        // Typical symptom of a base_url that points at the wrong path.
+        let (url, server) = serve(vec![
+            token_reply("tok-1"),
+            Reply {
+                status: 404,
+                body: "<html>not found</html>".to_string(),
+            },
+        ]);
+        let err = provider_for(&url).active_task().unwrap_err();
+        server.join().unwrap();
+        assert_eq!(err, ProviderError::Unavailable("HTTP 404".to_string()));
+    }
+
+    #[test]
+    fn test_sync_style_200_error_is_unavailable() {
+        // task-rest answers GET /sync failures with 200 and a message (open BUG upstream).
+        // The provider must treat the same body as an error on any endpoint.
+        let (url, server) = serve(vec![
+            token_reply("tok-1"),
+            list_reply(
+                r#"{"message":{"description":"No sync.* settings are configured. See task-sync(5).","type":"error"}}"#,
+            ),
+        ]);
+        let err = provider_for(&url).active_task().unwrap_err();
+        server.join().unwrap();
+        assert_eq!(
+            err,
+            ProviderError::Unavailable(
+                "No sync.* settings are configured. See task-sync(5).".to_string()
+            )
+        );
+    }
+
     // ---- live test (run manually) ----
 
     /// Needs a running task-rest. Run with:

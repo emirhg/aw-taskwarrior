@@ -1,0 +1,147 @@
+{
+  "tasks": [
+    {
+      "description": "C completed",
+      "end": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "entry": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "id": 0,
+      "modified": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "status": "completed",
+      "urgency": 0.0,
+      "uuid": "78a2ed3d-3fd0-4d67-9cd3-096d9d7539c9"
+    },
+    {
+      "description": "D deleted",
+      "end": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "entry": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "id": 0,
+      "modified": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "status": "deleted",
+      "urgency": 0.0,
+      "uuid": "fc4afb7f-6cbb-414d-a42c-f2a00618a970"
+    },
+    {
+      "description": "A pending started",
+      "entry": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "id": 1,
+      "modified": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "start": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "status": "pending",
+      "urgency": 4.0,
+      "uuid": "1270e71e-3013-4514-8653-98d78057c138"
+    },
+    {
+      "description": "B pending not started",
+      "entry": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "id": 2,
+      "modified": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "status": "pending",
+      "urgency": 0.0,
+      "uuid": "eef334fb-ccce-4aed-b55f-8da9ca08f346"
+    },
+    {
+      "description": "E started later",
+      "entry": "Thu, 05 Nov 2026 23:27:01 -0600",
+      "id": 3,
+      "modified": "Thu, 05 Nov 2026 23:27:03 -0600",
+      "start": "Thu, 05 Nov 2026 23:27:03 -0600",
+      "status": "pending",
+      "urgency": 4.0,
+      "uuid": "8cfb2322-15d1-4804-bdd5-9ccff94f3217"
+    },
+    {
+      "description": "F work with tags",
+      "entry": "Thu, 05 Nov 2026 23:27:03 -0600",
+      "id": 4,
+      "modified": "Thu, 05 Nov 2026 23:27:03 -0600",
+      "project": "Organizacion.Comunicacion",
+      "start": "Thu, 05 Nov 2026 23:27:03 -0600",
+      "status": "pending",
+      "tags": [
+        "reporte",
+        "work"
+      ],
+      "urgency": 5.9,
+      "uuid": "80f713f4-173a-48cd-9e35-93c54f6065f5"
+    },
+    {
+      "description": "G no project started",
+      "entry": "Thu, 05 Nov 2026 23:27:03 -0600",
+      "id": 5,
+      "modified": "Thu, 05 Nov 2026 23:31:59 -0600",
+      "status": "pending",
+      "urgency": 0.0,
+      "uuid": "2588c414-1d5b-4b3e-acf9-e72ed1dc0aca"
+    },
+    {
+      "description": "H recurring daily",
+      "due": "Fri, 06 Nov 2026 00:00:00 -0600",
+      "entry": "Thu, 05 Nov 2026 23:40:42 -0600",
+      "id": 6,
+      "mask": "-",
+      "modified": "Thu, 05 Nov 2026 23:40:42 -0600",
+      "recur": "daily",
+      "status": "recurring",
+      "urgency": 8.79394,
+      "uuid": "f74cb8a1-8ac4-4882-8cb1-f9971be9fbb2"
+    },
+    {
+      "description": "I waiting",
+      "entry": "Thu, 05 Nov 2026 23:40:42 -0600",
+      "id": 7,
+      "modified": "Thu, 05 Nov 2026 23:40:42 -0600",
+      "status": "pending",
+      "urgency": -3.0,
+      "uuid": "2a8a7841-8d68-444a-b3b3-3dc709a58ec4"
+    },
+    {
+      "description": "J started with annotation",
+      "entry": "Thu, 05 Nov 2026 23:40:42 -0600",
+      "id": 8,
+      "modified": "Thu, 05 Nov 2026 23:40:42 -0600",
+      "status": "pending",
+      "urgency": 0.0,
+      "uuid": "99184177-48be-4254-8c27-054352aa8d05"
+    },
+    {
+      "description": "H recurring daily",
+      "due": "Fri, 06 Nov 2026 00:00:00 -0600",
+      "entry": "Thu, 05 Nov 2026 23:40:42 -0600",
+      "id": 9,
+      "imask": 0,
+      "modified": "Thu, 05 Nov 2026 23:40:42 -0600",
+      "parent": {
+        "description": "H recurring daily",
+        "due": "Fri, 06 Nov 2026 00:00:00 -0600",
+        "entry": "Thu, 05 Nov 2026 23:40:42 -0600",
+        "id": 6,
+        "mask": "-",
+        "modified": "Thu, 05 Nov 2026 23:40:42 -0600",
+        "recur": "daily",
+        "status": "recurring",
+        "urgency": 8.79394,
+        "uuid": "f74cb8a1-8ac4-4882-8cb1-f9971be9fbb2"
+      },
+      "recur": "daily",
+      "status": "pending",
+      "urgency": 8.79394,
+      "uuid": "7002f2ca-9b2c-41ed-b78a-e9184881e2e3"
+    },
+    {
+      "annotations": [
+        {
+          "description": "a note",
+          "entry": "Thu, 05 Nov 2026 23:40:42 -0600"
+        }
+      ],
+      "description": "K started annotated",
+      "entry": "Thu, 05 Nov 2026 23:40:42 -0600",
+      "id": 10,
+      "modified": "Thu, 05 Nov 2026 23:40:42 -0600",
+      "start": "Thu, 05 Nov 2026 23:40:42 -0600",
+      "status": "pending",
+      "urgency": 4.8,
+      "uuid": "c9dcd2fc-4753-40b1-ae77-4e0fcbc513e0"
+    }
+  ]
+}
