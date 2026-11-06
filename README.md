@@ -57,22 +57,32 @@ aw-taskwarrior
 
 The daemon works **out of the box with zero configuration**. All settings have sensible hardcoded defaults.
 
-For custom settings, create an optional TOML file at `~/.config/aw-taskwarrior/config.toml`:
+The config follows the ActivityWatch convention: one file per component under `~/.config/activitywatch/`, with a section named after the component.
+
+| File | Purpose |
+|------|---------|
+| `~/.config/activitywatch/aw-client/aw-client.toml` | ActivityWatch server host and port (`[server]`). Shared with every ActivityWatch client; this daemon only reads it. |
+| `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml` | This daemon's settings (`[aw-taskwarrior]`) |
+
+Both files are optional. Without `aw-client.toml` the server is `127.0.0.1:5600`. The old path `~/.config/aw-taskwarrior/config.toml` is no longer read; move any settings into the new file.
+
+To change the server, edit `aw-client.toml`:
 
 ```toml
+[server]
+hostname = "127.0.0.1"
+port = "5600"
+```
+
+Daemon settings, in `aw-taskwarrior.toml`:
+
+```toml
+[aw-taskwarrior]
 # Where the active task comes from. "cli" runs the `task` command (the only provider today).
 provider = "cli"
 
-# Settings for the selected provider
-[providers.cli]
-timeout_seconds = 5          # max time for one `task export` call
-
 # How often to poll TaskWarrior for active tasks (seconds)
 poll_interval_seconds = 5
-
-# ActivityWatch server location
-aw_server_host = "localhost"
-aw_server_port = 5600
 
 # TaskWarrior tag that marks a task as "offline-trackable"
 # Tasks with this tag tolerate long gaps in tracking (e.g., system suspend)
@@ -86,7 +96,13 @@ offline_pulsetime_seconds = 43200
 
 # Optional: API key if ActivityWatch requires authentication
 # api_key = "your-api-key-here"
+
+# Settings for the selected provider
+[aw-taskwarrior.providers.cli]
+timeout_seconds = 5          # max time for one `task export` call
 ```
+
+Unknown keys in `[aw-taskwarrior]` are rejected at startup. In particular, `aw_server_host` and `aw_server_port` are no longer settings here; set the server in `aw-client.toml`. A `[aw-taskwarrior-testing]` section is reserved for the future `--testing` mode.
 
 **Default behavior when no task is active:**
 - A heartbeat is sent with only the title "No task tracked"
@@ -100,8 +116,8 @@ offline_pulsetime_seconds = 43200
 ```
 
 The daemon will:
-1. Load config from `~/.config/aw-taskwarrior/config.toml` (or use built-in defaults)
-2. Connect to ActivityWatch server (default: `localhost:5600`)
+1. Load config from `aw-client.toml` (server) and `aw-taskwarrior.toml` (daemon), or use built-in defaults
+2. Connect to ActivityWatch server (default: `127.0.0.1:5600`)
 3. Create/connect to bucket `aw-watcher-taskwarrior_{hostname}` (holds your task tracking data)
 4. Enter poll loop:
    - Every 5 seconds: query TaskWarrior for active tasks via `task rc.hooks:off +ACTIVE export`
@@ -137,7 +153,7 @@ autostart_modules = ["aw-server", "aw-watcher-afk", "aw-watcher-window", "aw-tas
 
 ## Testing
 
-All 25 unit tests pass, run from the repository root:
+All 41 unit tests pass, run from the repository root:
 
 ```bash
 cargo test
@@ -192,7 +208,9 @@ Cargo workspace; all commands run from the repository root.
 - The daemon will keep using the last known task state, so it's resilient to transient failures
 
 **Config file not loading (using defaults instead)**
-- Verify config file location: `cat ~/.config/aw-taskwarrior/config.toml`
+- Verify the config file locations: `cat ~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml` and `cat ~/.config/activitywatch/aw-client/aw-client.toml`
+- The old `~/.config/aw-taskwarrior/config.toml` is not read any more
+- A startup error naming `aw_server_host` or `aw_server_port` means those keys must be removed from `[aw-taskwarrior]`; set the server in `aw-client.toml`
 - Check for TOML syntax errors (run `cargo test` in the repo to validate TOML parsing)
 - Permission issue: `ls -la ~/.config/aw-taskwarrior/`
 

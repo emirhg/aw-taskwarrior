@@ -74,6 +74,7 @@ flowchart LR
 | Dependency | Required | Used for | Failure behavior |
 |------------|----------|----------|------------------|
 | `task` (TaskWarrior CLI) on `PATH` | Yes, when provider is `cli` | Active-task query, every poll | Logged; last known task is reused |
-| `aw-server` on `aw_server_host:aw_server_port` | Yes (retried) | Bucket creation, heartbeats | Startup retries every 30 s; heartbeat errors are logged |
-| Config file `~/.config/aw-taskwarrior/config.toml` | No | Overrides defaults, selects provider | Missing: defaults. Malformed: fatal. |
+| `aw-server` at the host and port from `aw-client.toml` (default `127.0.0.1:5600`) | Yes (retried) | Bucket creation, heartbeats | Startup retries every 30 s; heartbeat errors are logged |
+| `~/.config/activitywatch/aw-client/aw-client.toml` | No | Single source of truth for the server host and port (`[server]`). Read-only. | Missing: defaults. Malformed: fatal. |
+| `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml` | No | Daemon settings (`[aw-taskwarrior]`), provider selection | Missing: defaults. Malformed or unknown key: fatal. |
 | aw-qt | No | Optional discovery and autostart | None |

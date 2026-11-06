@@ -55,7 +55,7 @@ flowchart TD
 | Item | Kind | Notes |
 |------|------|-------|
 | `NAME` | const | `"cli"`. Used in config (`provider = "cli"`) and logs. |
-| `create(settings: Option<&toml::Table>)` | fn | Builds the provider from `[providers.cli]`. Key `timeout_seconds`: positive integer, default 5. Any other value gives `InvalidConfig`. |
+| `create(settings: Option<&toml::Table>)` | fn | Builds the provider from `[aw-taskwarrior.providers.cli]`. Key `timeout_seconds`: positive integer, default 5. Any other value gives `InvalidConfig`. |
 | `CliProvider` | struct | Holds the timeout. `new(Duration)`. Implements `TaskProvider`. |
 | `CliProvider::active_task` (via trait) | fn | Maps `TaskQueryError` to `ProviderError`: `Timeout` to `Timeout`, `InvalidJson` to `InvalidResponse`, `Spawn` and `NonZeroExit` to `Unavailable` |
 | `RawTwTask` | struct | JSON shape: `uuid`, `description`, `project`, `tags`, `start` (`YYYYMMDDTHHMMSSZ`) |
@@ -82,17 +82,22 @@ flowchart TD
 
 ### config.rs
 
-**Responsibility:** runtime settings with defaults, overlaid by an optional TOML file at `~/.config/aw-taskwarrior/config.toml` (via `dirs::config_dir`).
+**Responsibility:** runtime settings with defaults, following the ActivityWatch config convention (REQ-009). Server host and port come from `~/.config/activitywatch/aw-client/aw-client.toml`; daemon settings come from `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml`, section `[aw-taskwarrior]`. Both files are optional. Base directory via `dirs::config_dir`.
 
 | Item | Kind | Notes |
 |------|------|-------|
-| `Config` | struct | Fields: `poll_interval_seconds` (5), `aw_server_host` ("localhost"), `aw_server_port` (5600), `api_key` (None), `offline_tag` ("OFFLINE"), `online_pulsetime_seconds` (120), `offline_pulsetime_seconds` (43200), `provider` ("cli"), `providers` (empty table) |
-| `ConfigLoadError` | enum | `Io`, `Parse`. Both are fatal at startup. |
-| `config_path()` | fn | Returns the config file path, or None if no config dir exists |
-| `load()` | fn | Missing file returns defaults. Present file overlays only the keys it sets. |
+| `Config` | struct | Fields: `poll_interval_seconds` (5), `aw_server_host` ("127.0.0.1", from aw-client.toml), `aw_server_port` (5600, from aw-client.toml), `api_key` (None), `offline_tag` ("OFFLINE"), `online_pulsetime_seconds` (120), `offline_pulsetime_seconds` (43200), `provider` ("cli"), `providers` (empty table) |
+| `ConfigLoadError` | enum | `Io { path, source }`, `Parse { path, source }`, `InvalidValue { path, message }`. All are fatal at startup and name the file. |
+| `config_path()` | fn | Path of `aw-taskwarrior.toml`, or None if no config dir exists |
+| `client_config_path()` | fn | Path of `aw-client.toml`, or None if no config dir exists |
+| `load(testing: bool)` | fn | Reads `aw-client.toml` (`[server]`, or `[server-testing]` when testing; port may be a string or an integer), then `aw-taskwarrior.toml` (`[aw-taskwarrior]`, or `[aw-taskwarrior-testing]`). Missing files give defaults. Testing mode defaults the port to 5666. Always called with `false` until REQ-001. |
 
-- `providers` holds the raw `[providers.<name>]` tables. The watcher does not interpret them; they are passed to the chosen provider's `create()`.
-- Tests (6): defaults, partial overlay, full overlay, malformed TOML is a parse error, provider defaults to cli, provider and settings parse.
+- Private types: `ClientFile`/`ServerSection`/`PortValue` (aw-client.toml), `OwnFile`/`Section` (aw-taskwarrior.toml). `Section` rejects unknown keys, so a removed `aw_server_host` or `aw_server_port` fails at startup.
+- Private functions: `load_from(client_path, own_path, testing)` (testable core of `load`), `read_optional`, `apply_client_file`, `apply_own_file`, `component_path`.
+- The old path `~/.config/aw-taskwarrior/config.toml` is never read.
+
+- `providers` holds the raw `[aw-taskwarrior.providers.<name>]` tables. The watcher does not interpret them; they are passed to the chosen provider's `create()`.
+- Tests (22): defaults and provider default; config paths follow the convention; aw-client.toml with string port, integer port, missing keys, testing section, ignored sections, non-numeric port, malformed file; aw-taskwarrior.toml full section, partial section, nested provider settings, removed server key rejected and named, testing section, ignored sections, wrong type; `load_from` with no files, missing files, testing defaults, both files, malformed file names its path.
 
 ### providers.rs
 
@@ -135,10 +140,10 @@ flowchart TD
 
 ## Test summary
 
-25 unit tests, all run with `cargo test` from the repository root:
+41 unit tests, all run with `cargo test` from the repository root:
 
 | Crate | Tests |
 |-------|-------|
 | aw-taskwarrior-core | 0 |
 | aw-taskwarrior-provider-cli | 11 |
-| aw-taskwarrior (watcher) | 14 (config 6, activitywatch 3, providers 5) |
+| aw-taskwarrior (watcher) | 30 (config 22, activitywatch 3, providers 5) |

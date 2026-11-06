@@ -19,7 +19,7 @@ Rules:
 | REQ-006 | Plugin-style providers (workspace crates) | Implemented | Implemented | In sync |
 | REQ-007 | HTTP REST task provider | Documented | Not implemented | Docs ahead |
 | REQ-008 | In-process library task provider | Documented | Not implemented | Docs ahead |
-| REQ-009 | ActivityWatch config convention | Documented | Not implemented | Docs ahead |
+| REQ-009 | ActivityWatch config convention | Implemented | Implemented | In sync |
 
 ## Known code issues (not requirements)
 

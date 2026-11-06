@@ -1,6 +1,6 @@
 # REQ-009: Follow the ActivityWatch config convention; server settings from aw-client.toml
 
-- **Status:** Documented, not implemented
+- **Status:** Implemented
 - **Added:** 2026-11-05
 - **Owner:** maintainer
 
@@ -79,14 +79,14 @@ flowchart TD
 
 ## Acceptance criteria
 
-- [ ] Server host and port come from `aw-client.toml` `[server]`; a string or integer port both work.
-- [ ] Without `aw-client.toml`, the server is `127.0.0.1:5600`.
-- [ ] Settings are read from `[aw-taskwarrior]` in `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml`, including `[aw-taskwarrior.providers.<name>]`.
-- [ ] The old path `~/.config/aw-taskwarrior/config.toml` is never read.
-- [ ] A leftover `aw_server_host` or `aw_server_port` in `[aw-taskwarrior]` fails at startup and names the key.
-- [ ] A malformed file fails at startup and names the file path.
-- [ ] `config::load(true)` reads the `-testing` sections and defaults to port `5666`.
+- [x] Server host and port come from `aw-client.toml` `[server]`; a string or integer port both work. Verified at runtime: a `"5699"` string port made the daemon connect to `127.0.0.1:5699`.
+- [x] Without `aw-client.toml`, the server is `127.0.0.1:5600` (unit test).
+- [x] Settings are read from `[aw-taskwarrior]` in `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml`, including `[aw-taskwarrior.providers.<name>]`.
+- [x] The old path `~/.config/aw-taskwarrior/config.toml` is never read. Verified at runtime: an old file with `provider = "http"` had no effect.
+- [x] A leftover `aw_server_host` or `aw_server_port` in `[aw-taskwarrior]` fails at startup and names the key. Verified at runtime.
+- [x] A malformed file fails at startup and names the file path. Verified at runtime for `aw-client.toml`.
+- [x] `config::load(true)` reads the `-testing` sections and defaults to port `5666` (unit tests).
 
 ## Code references
 
-- Implemented in: (none yet)
+- Implemented in: `crates/aw-taskwarrior/src/config.rs` (`load`, `load_from`, `apply_client_file`, `apply_own_file`), `crates/aw-taskwarrior/src/main.rs` (`config::load(false)`)

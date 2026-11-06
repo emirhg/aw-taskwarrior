@@ -43,12 +43,13 @@ pub enum ProviderError {
 }
 ```
 
-Configuration (watcher config file, backward compatible; no file means `cli`):
+Configuration (in `aw-taskwarrior.toml`, see REQ-009; no file means `cli`):
 
 ```toml
+[aw-taskwarrior]
 provider = "cli"            # which compiled-in provider to use
 
-[providers.cli]             # opaque to the watcher; passed to the provider's create()
+[aw-taskwarrior.providers.cli]   # opaque to the watcher; passed to the provider's create()
 timeout_seconds = 5
 ```
 

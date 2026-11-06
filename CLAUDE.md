@@ -33,4 +33,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - The CLI provider polls TaskWarrior with `task rc.hooks:off +ACTIVE export`. Keep `rc.hooks:off` so the query does not trigger user hooks.
 - Empty or null values must be omitted from ActivityWatch heartbeat payloads. Do not send them.
+- Config follows the ActivityWatch convention: daemon settings in `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml` (section `[aw-taskwarrior]`), server host and port read from `~/.config/activitywatch/aw-client/aw-client.toml`. Never add server host or port settings to this daemon's own section, and never read the old `~/.config/aw-taskwarrior/config.toml`.
 - Config is optional. Every setting needs a built-in default in `crates/aw-taskwarrior/src/config.rs`, so the daemon runs with no config file.
+- When testing config code, use temp files or `XDG_CONFIG_HOME`/`XDG_CACHE_HOME` scratch dirs. The real `aw-server` and the user's daemon may be running, and the AW client enforces one instance per name.

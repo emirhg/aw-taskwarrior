@@ -104,7 +104,7 @@ impl TaskProvider for CliProvider {
     }
 }
 
-/// Builds the CLI provider from `[providers.cli]` settings.
+/// Builds the CLI provider from `[aw-taskwarrior.providers.cli]` settings.
 /// Supported key: `timeout_seconds` (positive integer, default 5).
 pub fn create(settings: Option<&toml::Table>) -> Result<Box<dyn TaskProvider>, ProviderError> {
     let timeout_seconds = match settings.and_then(|t| t.get("timeout_seconds")) {
@@ -112,7 +112,7 @@ pub fn create(settings: Option<&toml::Table>) -> Result<Box<dyn TaskProvider>, P
         Some(toml::Value::Integer(n)) if *n >= 1 => *n as u64,
         Some(other) => {
             return Err(ProviderError::InvalidConfig(format!(
-                "providers.cli.timeout_seconds must be a positive integer, got {}",
+                "aw-taskwarrior.providers.cli.timeout_seconds must be a positive integer, got {}",
                 other
             )))
         }

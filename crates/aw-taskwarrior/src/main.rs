@@ -11,7 +11,7 @@ use std::time::Duration;
 
 fn main() {
     // Load config
-    let cfg = match config::load() {
+    let cfg = match config::load(false) {
         Ok(c) => c,
         Err(e) => {
             log::log_error(&format!("Fatal: {}", e));

@@ -9,7 +9,7 @@ flowchart LR
     user([User]) -->|starts/stops tasks| tw[TaskWarrior CLI<br/>task rc.hooks:off +ACTIVE export]
     daemon[aw-taskwarrior daemon] -->|via TaskProvider| prov[active-task provider]
     prov -->|cli: spawns and reads JSON| tw
-    daemon -->|create bucket, heartbeat HTTP| aws[ActivityWatch server<br/>aw-server, default localhost:5600]
+    daemon -->|create bucket, heartbeat HTTP| aws[ActivityWatch server<br/>aw-server, host and port from aw-client.toml, default 127.0.0.1:5600]
     awqt[aw-qt] -.->|discovers aw-* binaries, optional autostart| daemon
     aws --> ui[ActivityWatch UI]
 ```
@@ -106,8 +106,8 @@ Shutdown is also honored during startup retries and during the sleep between pol
 | Invalid provider settings (e.g. `timeout_seconds = 0`) | Fatal at startup, exit 1 |
 | ActivityWatch unreachable at startup | Log error, retry every 30 s until reachable or shutdown |
 | Heartbeat fails | Log error, next poll sends again |
-| Config file unreadable or malformed | Fatal, exit 1 |
-| Config file missing | Use built-in defaults |
+| `aw-client.toml` or `aw-taskwarrior.toml` unreadable or malformed, or an unknown key in `[aw-taskwarrior]` | Fatal, exit 1; the message names the file |
+| Either config file missing | Use built-in defaults |
 
 ## Design decisions
 
@@ -116,6 +116,7 @@ Shutdown is also honored during startup retries and during the sleep between pol
 - **Graceful degradation.** A failed `task` query reuses the last known state. An unreachable server is retried indefinitely.
 - **stdout/stderr logging only.** No log files, so aw-qt can read the output.
 - **Zero-config default.** Every setting has a built-in default in `crates/aw-taskwarrior/src/config.rs`.
+- **ActivityWatch config convention.** Settings live in `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml`. The server host and port are read from `aw-client.toml`, so there is one source of truth for the server (REQ-009).
 - **Plugin-style providers.** The watcher depends only on the `TaskProvider` trait. Each source is a separate crate, selected by config and a Cargo feature (REQ-006).
 
 ## Known issue

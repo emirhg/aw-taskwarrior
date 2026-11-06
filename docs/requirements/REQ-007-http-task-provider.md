@@ -13,12 +13,13 @@ An external service will expose the active task over a REST API. A consumer prov
 - New crate `crates/aw-taskwarrior-provider-http` implementing `TaskProvider` (depends on REQ-006). Feature `provider-http` in the watcher.
 - `NAME = "http"`.
 - Blocking HTTP client, matching the rest of the daemon. Client crate choice is recorded in [../dependencies.md](../dependencies.md) when made.
-- Settings under `[providers.http]`:
+- Settings under `[aw-taskwarrior.providers.http]` in `aw-taskwarrior.toml` (REQ-009):
 
 ```toml
+[aw-taskwarrior]
 provider = "http"
 
-[providers.http]
+[aw-taskwarrior.providers.http]
 base_url = "https://example.invalid"   # TBD: API host
 timeout_seconds = 5                    # TBD default
 api_key = "..."                        # TBD: auth scheme (header name, token source)
@@ -33,7 +34,7 @@ api_key = "..."                        # TBD: auth scheme (header name, token so
 
 - [ ] With `provider = "http"` and the feature enabled, the watcher reads the active task from the API.
 - [ ] Unreachable API: the last known task is reused and the error is logged.
-- [ ] Missing or invalid `[providers.http]` settings fail at startup with `InvalidConfig`.
+- [ ] Missing or invalid `[aw-taskwarrior.providers.http]` settings fail at startup with `InvalidConfig`.
 - [ ] `api_key` never appears in logs.
 
 ## Code references
