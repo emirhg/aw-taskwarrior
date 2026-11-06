@@ -99,5 +99,5 @@ The Windows binary imports only Windows system DLLs. No MinGW runtime DLLs are n
 | `aw-server` at the host and port from `aw-client.toml` (default `127.0.0.1:5600`) | Yes (retried) | Bucket creation, heartbeats | Startup retries every 30 s; heartbeat errors are logged |
 | `~/.config/activitywatch/aw-client/aw-client.toml` | No | Single source of truth for the server host and port (`[server]`). Read-only. | Missing: defaults. Malformed: fatal. |
 | `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml` | No | Daemon settings (`[aw-taskwarrior]`), provider selection | Missing: defaults. Malformed or unknown key: fatal. |
-| task-rest API (`base_url`, e.g. `http://127.0.0.1:5000`) | Yes, when provider is `http` | Active-task query, every poll (`GET /auth`, then `GET /`) | Logged; last known task is reused. Wrong password: `authentication rejected`. |
+| task-rest API (`base_url`, e.g. `http://127.0.0.1:5000`) | Yes, when provider is `http` | Active-task query, every poll: `GET /?status=pending&start.any=`, preceded by `GET /auth` when `username`/`password` are set | Logged; last known task is reused. Wrong password: `authentication rejected`. No credentials against an authenticated server: `server requires authentication`. |
 | aw-qt | No | Optional discovery and autostart | None |

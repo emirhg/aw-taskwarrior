@@ -1,6 +1,6 @@
 # REQ-010: Server-side task filtering in task-rest
 
-- **Status:** Documented, not implemented
+- **Status:** Implemented
 - **Added:** 2026-11-06 (server side implemented in task-rest `501b9ff`, verified 2026-11-07)
 - **Owner:** maintainer
 
@@ -29,10 +29,10 @@ Saved as `crates/aw-taskwarrior-provider-http/tests/fixtures/task_list_active.js
 ## Acceptance criteria
 
 - [x] (task-rest) `GET /?status=pending&start.any=` returns the same tasks as `task status:pending start.any:` on the same data (task-rest tests, verified against the live server).
-- [ ] The HTTP provider sends the filter and returns the same `ActiveTask` as the unfiltered path, on the same data.
-- [ ] A poll transfers only the active tasks, not the full list (checked against the fixture sizes: the filtered response is a few kilobytes).
+- [x] The HTTP provider sends the filter and returns the same `ActiveTask` as the unfiltered path, on the same data. Verified against the live server in both modes: the live test returned `K started annotated` with and without credentials.
+- [x] A poll transfers only the active tasks, not the full list. The filtered response is 4 tasks (`task_list_active.json`), not the 13 of the unfiltered list.
 
 ## Code references
 
 - Server side: task-rest `task_rest/filters.py`, `task_rest/resources.py` (`TaskListResource.get`), commit `501b9ff`.
-- Provider side: (none yet; to be implemented in `crates/aw-taskwarrior-provider-http`, see REQ-007).
+- Provider side: `crates/aw-taskwarrior-provider-http/src/lib.rs` (`ACTIVE_FILTER`, `fetch_list`), fixture `tests/fixtures/task_list_active.json`.

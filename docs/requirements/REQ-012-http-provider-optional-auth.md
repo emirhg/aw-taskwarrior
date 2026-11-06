@@ -1,6 +1,6 @@
 # REQ-012: HTTP provider without credentials (task-rest local mode)
 
-- **Status:** Documented, not implemented
+- **Status:** Implemented
 - **Added:** 2026-11-07
 - **Owner:** maintainer
 
@@ -46,13 +46,13 @@ Secrets (password, token) never appear in logs or errors, as in REQ-007.
 
 ## Acceptance criteria
 
-- [ ] With no username and password, the provider reads the active task from a `--no-auth` task-rest, and never calls `/auth`.
-- [ ] With only one of username and password, startup fails with `InvalidConfig` naming both keys.
-- [ ] A `401` without credentials reports the "server requires authentication" message.
-- [ ] A `404` from `/auth` with credentials reports the hint message.
-- [ ] The existing wrong-password message and the secrets rule are unchanged.
+- [x] With no username and password, the provider reads the active task from a `--no-auth` task-rest, and never calls `/auth`. Verified against the live `--no-auth` server (no `/auth` request in its log) and by the mock test.
+- [x] With only one of username and password, startup fails with `InvalidConfig` naming both keys (test).
+- [x] A `401` without credentials reports the "server requires authentication" message (test).
+- [x] A `404` from `/auth` with credentials reports the hint message (test).
+- [x] The existing wrong-password message and the secrets rule are unchanged (existing tests).
 
 ## Code references
 
-- Provider: (none yet; to be implemented in `crates/aw-taskwarrior-provider-http`)
+- Provider: `crates/aw-taskwarrior-provider-http/src/lib.rs` (`credentials_setting`, `Credentials`, `active_task`, `AUTH_NOT_FOUND`, `SERVER_REQUIRES_AUTH`).
 - Server: task-rest `task_rest/serve.py`, `task_rest/__init__.py` (`create_app(auth_enabled=False)`), commit `b7386eb`.

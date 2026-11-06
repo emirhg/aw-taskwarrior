@@ -23,7 +23,7 @@ External parts:
 
 The watcher never calls `task` itself. It holds a `Box<dyn TaskProvider>` built from config (`provider = "cli"` by default; `provider = "http"` reads from the task-rest API). Each provider crate is selected by a Cargo feature, and both are on by default. The library provider (REQ-008) will plug into the same seam and is not implemented yet.
 
-The HTTP provider logs in to `GET /auth` with Basic credentials from config, then reads `GET /` with the token. Each poll downloads the whole task list; REQ-010 tracks a server-side filter. See [REQ-007](requirements/REQ-007-http-task-provider.md) for the verified contract.
+The HTTP provider logs in to `GET /auth` with Basic credentials from config when they are set, then reads the active tasks with `GET /?status=pending&start.any=` and the token. Without credentials (task-rest local mode, REQ-012) it reads the same filtered list with no login. See [REQ-007](requirements/REQ-007-http-task-provider.md), [REQ-010](requirements/REQ-010-task-rest-attribute-filter.md) and [REQ-012](requirements/REQ-012-http-provider-optional-auth.md).
 
 ## Startup
 

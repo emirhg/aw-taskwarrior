@@ -1,10 +1,10 @@
 //! HTTP task provider: reads the active task from the task-rest API (REQ-007).
 //!
-//! Flow: `GET /auth` with Basic credentials returns a JWT. `GET /` with the JWT in
-//! `x-access-tokens` returns every task. The active task is the latest pending task
-//! that has a start date, the same meaning as TaskWarrior's `+ACTIVE`.
-//!
-//! The filter is applied client-side for now. REQ-010 tracks the server-side filter.
+//! Flow: with credentials, `GET /auth` (Basic) returns a JWT, sent in `x-access-tokens`.
+//! Without credentials (task-rest local mode, REQ-012) there is no login. Each poll sends
+//! `GET /?status=pending&start.any=` (REQ-010), so the server returns only pending tasks
+//! that have a start date, the same meaning as TaskWarrior's `+ACTIVE`. The latest one is
+//! the active task, and the same selection also runs on the result as a safety net.
 
 use aw_taskwarrior_core::{ActiveTask, ProviderError, TaskProvider};
 use chrono::{DateTime, FixedOffset};
@@ -22,13 +22,24 @@ pub const NAME: &str = "http";
 const DEFAULT_TIMEOUT_SECONDS: u64 = 5;
 const TOKEN_HEADER: &str = "x-access-tokens";
 const AUTH_REJECTED: &str = "authentication rejected: check username and password";
+const SERVER_REQUIRES_AUTH: &str = "server requires authentication: set username and password";
+const AUTH_NOT_FOUND: &str = "HTTP 404 from /auth: wrong base_url, or the server runs without \
+    authentication (remove username and password)";
+/// Server-side filter for the active tasks (REQ-010): pending, with a start date.
+const ACTIVE_FILTER: [(&str, &str); 2] = [("status", "pending"), ("start.any", "")];
+
+/// Login data for a task-rest server that requires authentication.
+struct Credentials {
+    username: String,
+    password: String,
+}
 
 /// Talks to a task-rest server and keeps the JWT between polls.
 pub struct HttpProvider {
     client: Client,
     base_url: Url,
-    username: String,
-    password: String,
+    /// `None` means task-rest local mode: no login and no token (REQ-012).
+    credentials: Option<Credentials>,
     token: Mutex<Option<String>>,
 }
 
@@ -36,8 +47,11 @@ impl fmt::Debug for HttpProvider {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HttpProvider")
             .field("base_url", &self.base_url.as_str())
-            .field("username", &self.username)
-            .field("password", &"<redacted>")
+            .field(
+                "username",
+                &self.credentials.as_ref().map(|c| c.username.as_str()),
+            )
+            .field("password", &self.credentials.as_ref().map(|_| "<redacted>"))
             .field("token", &"<redacted>")
             .finish()
     }
@@ -54,8 +68,7 @@ fn build(settings: Option<&toml::Table>) -> Result<HttpProvider, ProviderError> 
     let settings = settings.unwrap_or(&empty);
 
     let base_url = parse_base_url(&required_string(settings, "base_url")?)?;
-    let username = required_string(settings, "username")?;
-    let password = required_string(settings, "password")?;
+    let credentials = credentials_setting(settings)?;
     let timeout_seconds = timeout_setting(settings)?;
 
     let client = Client::builder()
@@ -66,8 +79,7 @@ fn build(settings: Option<&toml::Table>) -> Result<HttpProvider, ProviderError> 
     Ok(HttpProvider {
         client,
         base_url,
-        username,
-        password,
+        credentials,
         token: Mutex::new(None),
     })
 }
@@ -78,14 +90,22 @@ impl TaskProvider for HttpProvider {
     }
 
     fn active_task(&self) -> Result<ActiveTask, ProviderError> {
+        if self.credentials.is_none() {
+            // task-rest local mode: no login, no token.
+            let response = self.fetch_list(None)?;
+            if response.status() == StatusCode::UNAUTHORIZED {
+                return Err(ProviderError::Unavailable(SERVER_REQUIRES_AUTH.to_string()));
+            }
+            return read_active_task(response);
+        }
         let token = self.cached_or_fresh_token()?;
-        let response = self.fetch_list(&token)?;
+        let response = self.fetch_list(Some(&token))?;
         if response.status() != StatusCode::UNAUTHORIZED {
             return read_active_task(response);
         }
         // The token expired or was rejected: authenticate once more and retry once.
         let token = self.refresh_token()?;
-        read_active_task(self.fetch_list(&token)?)
+        read_active_task(self.fetch_list(Some(&token))?)
     }
 }
 
@@ -97,16 +117,24 @@ impl HttpProvider {
     }
 
     fn authenticate(&self) -> Result<String, ProviderError> {
+        let credentials = self.credentials.as_ref().ok_or_else(|| {
+            ProviderError::InvalidConfig(
+                "login requested without username and password".to_string(),
+            )
+        })?;
         let response = self
             .client
             .get(self.endpoint("auth")?)
-            .basic_auth(&self.username, Some(&self.password))
+            .basic_auth(&credentials.username, Some(&credentials.password))
             .send()
             .map_err(transport_error)?;
 
         let status = response.status();
         if status == StatusCode::UNAUTHORIZED {
             return Err(ProviderError::Unavailable(AUTH_REJECTED.to_string()));
+        }
+        if status == StatusCode::NOT_FOUND {
+            return Err(ProviderError::Unavailable(AUTH_NOT_FOUND.to_string()));
         }
         if !status.is_success() {
             return Err(ProviderError::Unavailable(format!(
@@ -133,12 +161,13 @@ impl HttpProvider {
         Ok(token)
     }
 
-    fn fetch_list(&self, token: &str) -> Result<Response, ProviderError> {
-        self.client
-            .get(self.endpoint("")?)
-            .header(TOKEN_HEADER, token)
-            .send()
-            .map_err(transport_error)
+    /// Lists the active tasks. The token header is sent only when there is a token.
+    fn fetch_list(&self, token: Option<&str>) -> Result<Response, ProviderError> {
+        let mut request = self.client.get(self.endpoint("")?).query(&ACTIVE_FILTER);
+        if let Some(token) = token {
+            request = request.header(TOKEN_HEADER, token);
+        }
+        request.send().map_err(transport_error)
     }
 
     fn lock_token(&self) -> std::sync::MutexGuard<'_, Option<String>> {
@@ -261,11 +290,28 @@ fn key_error(key: &str, message: impl Into<String>) -> ProviderError {
 }
 
 fn required_string(settings: &toml::Table, key: &str) -> Result<String, ProviderError> {
+    optional_string(settings, key)?.ok_or_else(|| key_error(key, "is required"))
+}
+
+fn optional_string(settings: &toml::Table, key: &str) -> Result<Option<String>, ProviderError> {
     match settings.get(key) {
-        None => Err(key_error(key, "is required")),
+        None => Ok(None),
         Some(toml::Value::String(s)) if s.is_empty() => Err(key_error(key, "must not be empty")),
-        Some(toml::Value::String(s)) => Ok(s.clone()),
+        Some(toml::Value::String(s)) => Ok(Some(s.clone())),
         Some(other) => Err(key_error(key, format!("must be a string, got {}", other))),
+    }
+}
+
+/// `username` and `password` are both set (login) or both absent (local mode, REQ-012).
+fn credentials_setting(settings: &toml::Table) -> Result<Option<Credentials>, ProviderError> {
+    match (
+        optional_string(settings, "username")?,
+        optional_string(settings, "password")?,
+    ) {
+        (None, None) => Ok(None),
+        (Some(username), Some(password)) => Ok(Some(Credentials { username, password })),
+        (Some(_), None) => Err(key_error("password", "must be set together with username")),
+        (None, Some(_)) => Err(key_error("username", "must be set together with password")),
     }
 }
 
@@ -611,7 +657,7 @@ mod tests {
         let seen = server.join().unwrap();
         assert!(seen[0].starts_with("GET /auth auth=Basic "));
         assert!(!seen[0].contains(PASSWORD));
-        assert_eq!(seen[1], "GET / token=tok-1");
+        assert_eq!(seen[1], "GET /?status=pending&start.any= token=tok-1");
     }
 
     #[test]
@@ -630,7 +676,7 @@ mod tests {
             seen.iter().filter(|l| l.starts_with("GET /auth")).count(),
             1
         );
-        assert_eq!(seen[2], "GET / token=tok-1");
+        assert_eq!(seen[2], "GET /?status=pending&start.any= token=tok-1");
     }
 
     #[test]
@@ -645,9 +691,9 @@ mod tests {
         assert_eq!(task.title, "G no project started");
 
         let seen = server.join().unwrap();
-        assert_eq!(seen[1], "GET / token=tok-1");
+        assert_eq!(seen[1], "GET /?status=pending&start.any= token=tok-1");
         assert!(seen[2].starts_with("GET /auth"));
-        assert_eq!(seen[3], "GET / token=tok-2");
+        assert_eq!(seen[3], "GET /?status=pending&start.any= token=tok-2");
     }
 
     #[test]
@@ -761,6 +807,97 @@ mod tests {
         ))))
         .unwrap();
         assert_eq!(provider.active_task().unwrap_err(), ProviderError::Timeout);
+    }
+
+    // ---- local mode (REQ-012) and the server-side filter (REQ-010) ----
+
+    /// Filtered response captured from task-rest (`?status=pending&start.any=`).
+    const FIXTURE_ACTIVE: &str = include_str!("../tests/fixtures/task_list_active.json");
+
+    fn local_settings(base_url: &str) -> toml::Table {
+        settings(&format!("base_url = \"{}\"\n", base_url))
+    }
+
+    #[test]
+    fn test_pair_of_credentials_is_required_together() {
+        let only_user = settings("base_url = \"http://127.0.0.1:5000\"\nusername = \"dev\"\n");
+        let err = build(Some(&only_user)).unwrap_err();
+        assert!(err.to_string().contains("password"));
+        assert!(err.to_string().contains("must be set together"));
+
+        let only_password = settings("base_url = \"http://127.0.0.1:5000\"\npassword = \"x\"\n");
+        let err = build(Some(&only_password)).unwrap_err();
+        assert!(err.to_string().contains("username"));
+    }
+
+    #[test]
+    fn test_no_credentials_is_local_mode() {
+        assert!(build(Some(&local_settings("http://127.0.0.1:5000"))).is_ok());
+    }
+
+    #[test]
+    fn test_local_mode_never_calls_auth_and_sends_no_token() {
+        let (url, server) = serve(vec![list_reply(FIXTURE_ACTIVE)]);
+        let task = build(Some(&local_settings(&url)))
+            .unwrap()
+            .active_task()
+            .unwrap();
+        assert_eq!(task.title, "K started annotated");
+
+        let seen = server.join().unwrap();
+        assert_eq!(seen, vec!["GET /?status=pending&start.any=".to_string()]);
+    }
+
+    #[test]
+    fn test_local_mode_401_says_server_requires_auth() {
+        let (url, server) = serve(vec![unauthorized()]);
+        let err = build(Some(&local_settings(&url)))
+            .unwrap()
+            .active_task()
+            .unwrap_err();
+        server.join().unwrap();
+        assert_eq!(
+            err,
+            ProviderError::Unavailable(SERVER_REQUIRES_AUTH.to_string())
+        );
+    }
+
+    #[test]
+    fn test_login_404_gets_hint_about_base_url_and_local_mode() {
+        let (url, server) = serve(vec![Reply {
+            status: 404,
+            body: "<html>not found</html>".to_string(),
+        }]);
+        let err = provider_for(&url).active_task().unwrap_err();
+        server.join().unwrap();
+        assert_eq!(err, ProviderError::Unavailable(AUTH_NOT_FOUND.to_string()));
+        assert!(err.to_string().contains("wrong base_url"));
+        assert!(err.to_string().contains("remove username and password"));
+    }
+
+    #[test]
+    fn test_filtered_fixture_selects_latest_active_task() {
+        let json: Value = serde_json::from_str(FIXTURE_ACTIVE).unwrap();
+        let tasks: Vec<ApiTask> = serde_json::from_value(json["tasks"].clone()).unwrap();
+        assert_eq!(tasks.len(), 4);
+        assert_eq!(select_active(tasks).title, "K started annotated");
+    }
+
+    #[test]
+    fn test_filter_400_message_is_unavailable() {
+        let (url, server) = serve(vec![Reply {
+            status: 400,
+            body: r#"{"message":{"description":"Unknown filter \"foo\". Supported: status.","type":"error"}}"#
+                .to_string(),
+        }]);
+        let err = build(Some(&local_settings(&url)))
+            .unwrap()
+            .active_task()
+            .unwrap_err();
+        server.join().unwrap();
+        assert!(
+            matches!(err, ProviderError::Unavailable(ref m) if m.starts_with("Unknown filter"))
+        );
     }
 
     // ---- task-rest HEAD (f7a64b3): newer response shape and status codes ----
@@ -900,18 +1037,27 @@ mod tests {
 
     // ---- live test (run manually) ----
 
-    /// Needs a running task-rest. Run with:
+    /// Needs a running task-rest. Run with credentials (authenticated server):
     /// TASK_REST_URL=http://127.0.0.1:5055 TASK_REST_USER=dev TASK_REST_PASSWORD=password \
     ///   cargo test -p aw-taskwarrior-provider-http -- --ignored
+    /// or without them (task-rest `--no-auth`, local mode):
+    /// TASK_REST_URL=http://127.0.0.1:5056 cargo test -p aw-taskwarrior-provider-http -- --ignored
     #[test]
     #[ignore]
     fn live_task_rest_returns_active_task() {
         let url = std::env::var("TASK_REST_URL").expect("set TASK_REST_URL");
-        let user = std::env::var("TASK_REST_USER").expect("set TASK_REST_USER");
-        let password = std::env::var("TASK_REST_PASSWORD").expect("set TASK_REST_PASSWORD");
+        let credentials = match (
+            std::env::var("TASK_REST_USER").ok(),
+            std::env::var("TASK_REST_PASSWORD").ok(),
+        ) {
+            (Some(user), Some(password)) => {
+                format!("username = \"{}\"\npassword = \"{}\"\n", user, password)
+            }
+            _ => String::new(),
+        };
         let provider = build(Some(&settings(&format!(
-            "base_url = \"{}\"\nusername = \"{}\"\npassword = \"{}\"\n",
-            url, user, password
+            "base_url = \"{}\"\n{}",
+            url, credentials
         ))))
         .unwrap();
         let task = provider.active_task().unwrap();

@@ -137,13 +137,15 @@ provider = "http"
 
 [aw-taskwarrior.providers.http]
 base_url = "http://127.0.0.1:5000"   # http or https; no user info; a path prefix is allowed
-username = "dev"
-password = "password"
+username = "dev"                     # optional; set together with password
+password = "password"               # optional; set together with username
 timeout_seconds = 5                  # optional, default 5
 ```
 
+- Without `username` and `password`, the provider talks to a task-rest started with `python -m task_rest.serve --no-auth` (local mode, REQ-012). It never logs in.
+- With them, the provider logs in with `GET /auth` and sends the token. Setting only one of the two is an error at startup.
 - The password is stored in plain text, like `api_key`. Make the file readable only by your user (`chmod 600` on Linux, or a per-user permission on Windows).
-- Each poll downloads the whole task list from task-rest (about 1.6 MB with the development data). A server-side filter is requested in `task-rest/REQUEST.md` (REQ-010).
+- Each poll asks task-rest for the active tasks only: `GET /?status=pending&start.any=` (REQ-010). The provider still applies its own selection rule to the result.
 - The provider needs a running task-rest. If it is unreachable or the login fails, the last known task is reused and the error is logged.
 
 Unknown keys in `[aw-taskwarrior]` are rejected at startup. In particular, `aw_server_host` and `aw_server_port` are no longer settings here; set the server in `aw-client.toml`. A `[aw-taskwarrior-testing]` section is reserved for the future `--testing` mode.
