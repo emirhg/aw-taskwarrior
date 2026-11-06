@@ -67,10 +67,30 @@ Observed rules for task objects:
 - `status` is `pending`, `completed` or `deleted`. Completed and deleted tasks are returned too.
 - Completing a task removes its `start`, so a completed task never has a `start` key.
 
-Errors:
-- Bad input to `POST /` returns `400` with `{"message": {"description": "...", "type": "error"}}`.
-- An unknown uuid returns `404` with the same `message` shape.
-- A TaskWarrior error on a read is returned in the `message` shape too. The provider must handle any non-2xx response that carries a `message` object, and a `200` that has no `tasks` key and a `message` of type `error`.
+Errors (verified against task-rest HEAD `f7a64b3` with tasklib `2c855bb`, Taskwarrior 3.5.0):
+
+| Endpoint | Condition | Status | Body |
+|----------|-----------|--------|------|
+| `GET /auth` | Wrong username or password | `401` | Plain text `Could not verify`, header `WWW.Authentification` |
+| `GET /` | No token, bad token, or expired token | `401` | Plain text `Could not verify` |
+| `GET /` | Success | `200` | `{"tasks": [...]}` |
+| `GET /sync` (no sync server configured) | TaskWarrior error | `200` | `{"message": {"description": "No sync.* settings are configured...", "type": "error"}}` (open BUG upstream: should become an error status) |
+| `GET /<uuid>`, unknown uuid | Task not found | `404` | `{"message": {"description": "Task matching query does not exist...", "type": "error"}}` |
+| `POST /` | Bad input | `400` | `{"message": {"description": "Invalid input: ...", "type": "error"}}` |
+| `PUT /<uuid>/<command>` | Unknown command | `400` | `{"message": {"description": "Unknown command ...", "type": "error"}}` |
+
+The provider calls only `GET /auth` and `GET /`. Its rules:
+- A `401` from `GET /` triggers one re-authentication, then one retry. A second `401` is `Unavailable("authentication rejected: ...")`.
+- Any non-2xx response with a `message` object is `Unavailable(description)`, whatever its status code. This keeps the provider correct when task-rest moves the `/sync`-style errors to a real error status.
+- A `200` with `message.type == "error"` and no `tasks` key is also `Unavailable(description)`.
+- Other non-2xx responses (no JSON body) are `Unavailable("HTTP <code>")`.
+- A non-JSON body on a `2xx` is `InvalidResponse`.
+
+Token lifetime and restarts: `SECRET_KEY` is generated at each server start in production (open BUG upstream). Restarting task-rest makes existing tokens fail with `401`, which the one re-authentication covers.
+
+Recurring tasks appear twice: the template (`status: "recurring"`, with `recur` and `parent` fields) and its instance (`status: "pending"`, no start). Neither is active, so the selection rule ignores both.
+
+The API may return fields the provider does not read (`annotations`, `due`, `recur`, `parent`, `mask`, `imask`). They are ignored.
 
 ### Mapping to the active task
 
