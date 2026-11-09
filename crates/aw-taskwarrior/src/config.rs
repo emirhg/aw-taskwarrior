@@ -36,6 +36,8 @@ pub struct Config {
     pub offline_tag: String,
     pub online_pulsetime_seconds: u64,
     pub offline_pulsetime_seconds: u64,
+    /// Title sent while no task is active (REQ-015). Empty (the default) means no heartbeat.
+    pub no_task_title: String,
     /// Name of the task provider to use, e.g. "cli".
     pub provider: String,
     /// Per-provider settings, keyed by provider name. Passed opaquely to the provider.
@@ -52,6 +54,7 @@ impl Default for Config {
             offline_tag: "OFFLINE".to_string(),
             online_pulsetime_seconds: 120,
             offline_pulsetime_seconds: 43_200,
+            no_task_title: String::new(),
             provider: "cli".to_string(),
             providers: toml::Table::new(),
         }
@@ -113,6 +116,7 @@ struct Section {
     offline_tag: Option<String>,
     online_pulsetime_seconds: Option<u64>,
     offline_pulsetime_seconds: Option<u64>,
+    no_task_title: Option<String>,
     provider: Option<String>,
     providers: Option<toml::Table>,
 }
@@ -345,6 +349,9 @@ fn apply_own_file(
     }
     if let Some(v) = section.offline_pulsetime_seconds {
         cfg.offline_pulsetime_seconds = v;
+    }
+    if let Some(v) = section.no_task_title {
+        cfg.no_task_title = v;
     }
     if let Some(v) = section.provider {
         cfg.provider = v;
@@ -641,6 +648,25 @@ poll_interval_seconds = 1
     fn test_own_other_sections_ignored() {
         let cfg = apply_own("[something-else]\nfoo = 1\n", false).unwrap();
         assert_eq!(cfg.poll_interval_seconds, 5);
+    }
+
+    #[test]
+    fn test_no_task_title_default_is_empty() {
+        assert_eq!(Config::default().no_task_title, "");
+        let cfg = apply_own("[aw-taskwarrior]\npoll_interval_seconds = 3\n", false).unwrap();
+        assert_eq!(cfg.no_task_title, "");
+    }
+
+    #[test]
+    fn test_no_task_title_set_in_own_file() {
+        let cfg = apply_own("[aw-taskwarrior]\nno_task_title = \"Idle\"\n", false).unwrap();
+        assert_eq!(cfg.no_task_title, "Idle");
+    }
+
+    #[test]
+    fn test_no_task_title_empty_string_is_kept_as_empty() {
+        let cfg = apply_own("[aw-taskwarrior]\nno_task_title = \"\"\n", false).unwrap();
+        assert_eq!(cfg.no_task_title, "");
     }
 
     #[test]

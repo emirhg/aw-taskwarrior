@@ -119,9 +119,77 @@ pub fn select_pulsetime(task: &ActiveTask, cfg: &Config) -> f64 {
     }
 }
 
+/// Decides what to send for `task` (REQ-015). `None` means no heartbeat.
+///
+/// A real task is returned unchanged. The idle placeholder (`default_task()`) gives `None`
+/// when `no_task_title` is empty after trimming. Otherwise it becomes a task whose only
+/// content is the trimmed `no_task_title`.
+pub fn heartbeat_task(task: &ActiveTask, cfg: &Config) -> Option<ActiveTask> {
+    if *task != ActiveTask::default_task() {
+        return Some(task.clone());
+    }
+    let title = cfg.no_task_title.trim();
+    if title.is_empty() {
+        return None;
+    }
+    Some(ActiveTask {
+        uuid: None,
+        title: title.to_string(),
+        project: String::new(),
+        tags: Vec::new(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn real_task() -> ActiveTask {
+        ActiveTask {
+            uuid: Some("abc".to_string()),
+            title: "Write report".to_string(),
+            project: "Work".to_string(),
+            tags: vec!["urgent".to_string()],
+        }
+    }
+
+    #[test]
+    fn test_heartbeat_task_idle_and_title_unset_sends_nothing() {
+        let cfg = Config::default();
+        assert_eq!(heartbeat_task(&ActiveTask::default_task(), &cfg), None);
+    }
+
+    #[test]
+    fn test_heartbeat_task_idle_and_title_empty_or_blank_sends_nothing() {
+        let mut cfg = Config::default();
+        for value in ["", "   ", "\t"] {
+            cfg.no_task_title = value.to_string();
+            assert_eq!(heartbeat_task(&ActiveTask::default_task(), &cfg), None);
+        }
+    }
+
+    #[test]
+    fn test_heartbeat_task_idle_with_title_sends_only_title() {
+        let cfg = Config {
+            no_task_title: "  Idle  ".to_string(),
+            ..Config::default()
+        };
+
+        let sent = heartbeat_task(&ActiveTask::default_task(), &cfg).unwrap();
+        assert_eq!(sent.title, "Idle");
+        assert_eq!(sent.uuid, None);
+        assert_eq!(sent.project, "");
+        assert!(sent.tags.is_empty());
+    }
+
+    #[test]
+    fn test_heartbeat_task_real_task_unchanged_whatever_the_title() {
+        let mut cfg = Config::default();
+        assert_eq!(heartbeat_task(&real_task(), &cfg), Some(real_task()));
+
+        cfg.no_task_title = "Idle".to_string();
+        assert_eq!(heartbeat_task(&real_task(), &cfg), Some(real_task()));
+    }
 
     #[test]
     fn test_select_pulsetime_offline_tag_present() {

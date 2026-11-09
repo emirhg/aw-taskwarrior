@@ -25,7 +25,7 @@ Rules:
 | REQ-012 | HTTP provider without credentials (task-rest local mode) | Implemented | Implemented | In sync |
 | REQ-013 | HTTP provider hardening against task-rest | Implemented | Implemented | In sync |
 | REQ-014 | Windows config location and first-run config file | Implemented | Implemented | In sync |
-| REQ-015 | Configurable title for idle periods, empty by default | Documented | Not implemented | Docs ahead |
+| REQ-015 | Configurable title for idle periods, empty by default | Implemented | Implemented | In sync |
 
 ## Known code issues (not requirements)
 

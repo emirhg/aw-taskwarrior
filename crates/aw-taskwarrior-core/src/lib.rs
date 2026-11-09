@@ -15,11 +15,12 @@ pub struct ActiveTask {
 }
 
 impl ActiveTask {
-    /// Placeholder used when no task is active.
+    /// Placeholder used when no task is active. The title is empty; the watcher decides
+    /// from `no_task_title` in config whether anything is sent while idle (REQ-015).
     pub fn default_task() -> Self {
         ActiveTask {
             uuid: None,
-            title: "No task tracked".to_string(),
+            title: String::new(),
             project: String::new(),
             tags: Vec::new(),
         }

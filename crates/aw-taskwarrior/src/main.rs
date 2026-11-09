@@ -61,18 +61,32 @@ fn main() {
 
     // Initialize last known task to the default task
     let mut last_known_task = ActiveTask::default_task();
+    // Set while idle so the "no task" line is logged once, not on every poll (REQ-015)
+    let mut idle_logged = false;
 
     // Main poll loop
     while !shutdown.load(Ordering::SeqCst) {
         // Ask the provider for the active task; falls back to the last known task on failure
         let task = providers::resolve_task(provider.as_ref(), &mut last_known_task);
 
-        // Select pulsetime based on whether task has offline tag
-        let pulsetime = activitywatch::select_pulsetime(&task, &cfg);
+        // Decide what to send: None while idle with no no_task_title (REQ-015)
+        match activitywatch::heartbeat_task(&task, &cfg) {
+            Some(to_send) => {
+                idle_logged = false;
+                // Select pulsetime based on whether task has offline tag
+                let pulsetime = activitywatch::select_pulsetime(&to_send, &cfg);
 
-        // Send heartbeat to ActivityWatch
-        if let Err(e) = aw_client.send_heartbeat(&task, pulsetime) {
-            log::log_error(&e);
+                // Send heartbeat to ActivityWatch
+                if let Err(e) = aw_client.send_heartbeat(&to_send, pulsetime) {
+                    log::log_error(&e);
+                }
+            }
+            None => {
+                if !idle_logged {
+                    log::log_info("No active task; no heartbeat sent until one starts");
+                    idle_logged = true;
+                }
+            }
         }
 
         // Sleep for the configured poll interval, checking shutdown signal frequently

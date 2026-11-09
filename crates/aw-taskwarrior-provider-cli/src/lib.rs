@@ -195,7 +195,7 @@ mod tests {
             pick_latest(tasks)
         };
 
-        assert_eq!(result.title, "No task tracked");
+        assert_eq!(result.title, "");
         assert_eq!(result.project, "");
         assert_eq!(result.tags, vec![] as Vec<String>);
         assert_eq!(result.uuid, None);

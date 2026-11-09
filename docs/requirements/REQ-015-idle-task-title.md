@@ -1,6 +1,6 @@
 # REQ-015: Configurable title for idle periods, empty by default
 
-- **Status:** Documented, not implemented
+- **Status:** Implemented
 - **Added:** 2026-11-09
 - **Owner:** maintainer
 
@@ -48,13 +48,13 @@ None added. `aw-taskwarrior-core` keeps zero dependencies.
 
 ## Acceptance criteria
 
-- [ ] With no `no_task_title` in the config file, or with no config file, no heartbeat is sent while no task is active.
-- [ ] With `no_task_title = ""` or whitespace only, the same as the default.
-- [ ] With `no_task_title = "Idle"`, idle polls send a heartbeat titled `Idle` with no project and no tags.
-- [ ] A real active task is sent exactly as before, whatever `no_task_title` is.
-- [ ] The idle log line is written once per transition to idle, not on every poll.
-- [ ] The generated default config file keeps the key commented out (test).
+- [x] With no `no_task_title` in the config file, or with no config file, no heartbeat is sent while no task is active (test: `test_heartbeat_task_idle_and_title_unset_sends_nothing`).
+- [x] With `no_task_title = ""` or whitespace only, the same as the default (test: `test_heartbeat_task_idle_and_title_empty_or_blank_sends_nothing`).
+- [x] With `no_task_title = "Idle"`, idle polls send a heartbeat titled `Idle` with no project and no tags (test: `test_heartbeat_task_idle_with_title_sends_only_title`).
+- [x] A real active task is sent exactly as before, whatever `no_task_title` is (test: `test_heartbeat_task_real_task_unchanged_whatever_the_title`).
+- [x] The idle log line is written once per transition to idle, not on every poll (code: `idle_logged` in `main.rs`; not unit tested).
+- [x] The generated default config file keeps the key commented out (existing test `test_commented_example_has_no_active_keys`).
 
 ## Code references
 
-- Implemented in: (empty until implemented) `crates/aw-taskwarrior-core/src/lib.rs` (`default_task`), `crates/aw-taskwarrior/src/config.rs` (`no_task_title`), `crates/aw-taskwarrior/src/activitywatch.rs` (`heartbeat_task`), `crates/aw-taskwarrior/src/main.rs` (poll loop); `examples/aw-taskwarrior.toml`.
+- Implemented in: `crates/aw-taskwarrior-core/src/lib.rs` (`default_task`, empty title), `crates/aw-taskwarrior/src/config.rs` (`Config::no_task_title`, `Section`, `apply_own_file`), `crates/aw-taskwarrior/src/activitywatch.rs` (`heartbeat_task`), `crates/aw-taskwarrior/src/main.rs` (poll loop); `examples/aw-taskwarrior.toml`.
