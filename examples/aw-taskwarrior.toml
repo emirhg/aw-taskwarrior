@@ -27,9 +27,9 @@ offline_tag = "OFFLINE"             # default
 online_pulsetime_seconds = 120      # default (2 min)
 offline_pulsetime_seconds = 43200   # default (12 h)
 
-# Title sent while no task is active. Unset or empty (default) sends no heartbeat, so idle
-# time shows as a gap. Set a text (e.g. "No task tracked") to send a marker instead.
-#no_task_title = "No task tracked"    # default: unset (no heartbeat while idle)
+# Title sent while no task is active. Unset or empty (default): no heartbeat, so idle time
+# shows as a gap. Set a text (e.g. "No task tracked") to send it as a marker instead.
+#no_task_title = "No task tracked"
 
 # Only needed if the ActivityWatch server requires an API key.
 #api_key = "your-api-key-here"

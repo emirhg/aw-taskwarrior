@@ -124,6 +124,10 @@ offline_tag = "OFFLINE"
 online_pulsetime_seconds = 120
 offline_pulsetime_seconds = 43200
 
+# Title sent while no task is active. Unset or empty (default): no heartbeat, so idle time
+# shows as a gap. Set a text to send it as a marker (no project or tags).
+# no_task_title = "No task tracked"
+
 # Optional: API key if ActivityWatch requires authentication
 # api_key = "your-api-key-here"
 
@@ -156,10 +160,13 @@ provider = "cli"                  # default
 
 poll_interval_seconds = 5         # default: how often to read the active task
 offline_tag = "OFFLINE"           # default: tasks with this tag get the long pulsetime
-#no_task_title = "No task tracked" # default: unset, so no heartbeat while no task is active
 online_pulsetime_seconds = 120    # default
 offline_pulsetime_seconds = 43200 # default (12 h)
 #api_key = "your-api-key"         # only if ActivityWatch requires one
+
+# Title sent while no task is active. Unset or empty (default): no heartbeat, so idle time
+# shows as a gap. Set a text to send it as a marker (no project or tags).
+#no_task_title = "No task tracked"
 
 # Provider settings. The table for the provider you use is read; the other is ignored.
 [aw-taskwarrior.providers.cli]
