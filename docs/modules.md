@@ -72,12 +72,12 @@ flowchart TD
 
 ## aw-taskwarrior-provider-http (`crates/aw-taskwarrior-provider-http/src/lib.rs`)
 
-**Responsibility:** the HTTP provider for task-rest (REQ-007). Authenticates with `GET /auth` (Basic), lists tasks with `GET /` (`x-access-tokens`), and picks the active task on the client side.
+**Responsibility:** the HTTP provider for task-rest (REQ-007). With `username` and `password` it authenticates with `GET /auth` (Basic) and sends the token in `x-access-tokens`; without them it uses task-rest local mode (REQ-012). It lists tasks with `GET /?status=pending&start.any=` (REQ-010) and picks the latest started task on the client side. Unknown settings are rejected (REQ-013).
 
 | Item | Kind | Notes |
 |------|------|-------|
 | `NAME` | const | `"http"`. Used in config (`provider = "http"`) and logs. |
-| `create(settings: Option<&toml::Table>)` | fn | Builds the provider from `[aw-taskwarrior.providers.http]`. Keys: `base_url` (required; http or https; no user info, query or fragment; a path prefix is kept), `username` and `password` (required, non-empty), `timeout_seconds` (positive integer, default 5). Any invalid value gives `InvalidConfig` naming the key. No network I/O. |
+| `create(settings: Option<&toml::Table>)` | fn | Builds the provider from `[aw-taskwarrior.providers.http]`. Keys: `base_url` (required; http or https; no user info, query or fragment; a path prefix is kept), `username` and `password` (both or neither, non-empty), `timeout_seconds` (positive integer, default 5). Any unknown key, or invalid value, gives `InvalidConfig` naming the key. No network I/O. |
 | `HttpProvider` | struct | Holds the blocking client, the base URL, the credentials and the cached JWT (`Mutex<Option<String>>`). Its `Debug` output hides the password and token. |
 | `HttpProvider::active_task` (via trait) | fn | Uses the cached token or authenticates. On `401`, re-authenticates once and retries. Second `401` gives `Unavailable("authentication rejected: ...")`. |
 | `select_active()` | fn (private) | Keeps tasks with `status == "pending"` and a `start`. Picks the latest start; ties go to the higher `id`; unparseable starts sort last. No match gives `ActiveTask::default_task()`. |
@@ -86,7 +86,7 @@ flowchart TD
 | `live_task_rest_returns_active_task` | test (ignored) | Needs a running task-rest and `TASK_REST_URL`; `TASK_REST_USER` and `TASK_REST_PASSWORD` are optional (absent = local mode). Run with `cargo test -p aw-taskwarrior-provider-http -- --ignored --nocapture`. |
 
 - Local mode (REQ-012): with neither `username` nor `password`, no `/auth` request and no token header are sent; a `401` reports "server requires authentication". `ACTIVE_FILTER` (`status=pending`, `start.any=`) is sent on every list request (REQ-010).
-- Tests (43, plus the ignored live test): settings validation (required keys, scheme, user info, query, empty values, timeout, path prefix, username and password set together, Debug hides secrets); local-mode requests and errors; `/auth` `404` hint; the filtered fixture (`tests/fixtures/task_list_active.json`); RFC 2822 offsets resolve to the same instant; selection on the captured fixtures (`tests/fixtures/task_list.json` and `task_list_head.json`, real task-rest responses): latest start with id tie-break, active set, project and tags mapping, pending without start, completed or deleted tasks, empty list, unparseable start, recurring and waiting tasks, newer fields ignored; HTTP flow against a loopback mock server: auth then list with the token header, cached token reuse, expired token replaced and retried, second rejection with no secrets in the error, wrong password, error message bodies, non-JSON bodies, `500` without JSON, sync-style 200 errors, connection refused, timeout.
+- Tests (49, plus the ignored live test): settings validation (required keys, unknown keys rejected, scheme, user info, query, empty values, timeout, path prefix, username and password set together, Debug hides secrets); `/auth` errors (non-JSON `200`, `500`, timeout, REQ-013); a lone unparseable `start` (REQ-013); local-mode requests and errors; `/auth` `404` hint; the filtered fixture (`tests/fixtures/task_list_active.json`); RFC 2822 offsets resolve to the same instant; selection on the captured fixtures (`tests/fixtures/task_list.json` and `task_list_head.json`, real task-rest responses): latest start with id tie-break, active set, project and tags mapping, pending without start, completed or deleted tasks, empty list, unparseable start, recurring and waiting tasks, newer fields ignored; HTTP flow against a loopback mock server: auth then list with the token header, cached token reuse, expired token replaced and retried, second rejection with no secrets in the error, wrong password, error message bodies, non-JSON bodies, `500` without JSON, sync-style 200 errors, connection refused, timeout.
 - The mock server binds only to `127.0.0.1` on port 0. The test suite makes no other network calls.
 
 ---
@@ -163,11 +163,11 @@ flowchart TD
 
 ## Test summary
 
-70 unit tests, all run with `cargo test` from the repository root, plus 1 live test that is ignored by default:
+91 unit tests, all run with `cargo test` from the repository root, plus 1 live test that is ignored by default:
 
 | Crate | Tests |
 |-------|-------|
 | aw-taskwarrior-core | 0 |
 | aw-taskwarrior-provider-cli | 11 |
-| aw-taskwarrior-provider-http | 43 (+1 ignored live test) |
+| aw-taskwarrior-provider-http | 49 (+1 ignored live test) |
 | aw-taskwarrior (watcher) | 31 (config 22, activitywatch 3, providers 6) |

@@ -21,8 +21,9 @@ Rules:
 | REQ-008 | In-process library task provider | Documented | Not implemented | Docs ahead |
 | REQ-009 | ActivityWatch config convention | Implemented | Implemented | In sync |
 | REQ-010 | Server-side task filtering in task-rest | Implemented | Implemented | In sync |
-| REQ-012 | HTTP provider without credentials (task-rest local mode) | Implemented | Implemented | In sync |
 | REQ-011 | Cross-compile for Windows 11 from Linux | Implemented | Implemented | In sync |
+| REQ-012 | HTTP provider without credentials (task-rest local mode) | Implemented | Implemented | In sync |
+| REQ-013 | HTTP provider hardening against task-rest | Implemented | Implemented | In sync |
 
 ## Known code issues (not requirements)
 
