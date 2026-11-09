@@ -17,7 +17,7 @@ ActivityWatch components keep their config in `~/.config/activitywatch/<componen
 | Client config | `~/.config/activitywatch/aw-client/aw-client.toml` | Single source of truth for the server host and port. Read-only for this daemon. |
 | Component config | `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml` | Settings of this daemon |
 
-The base directory is `dirs::config_dir()` (honors `XDG_CONFIG_HOME`). Both files are optional; a missing file means defaults. The old path `~/.config/aw-taskwarrior/config.toml` is **not read** (no fallback). A leftover file there is ignored.
+The base directory is `dirs::config_dir()` on Linux and macOS (honors `XDG_CONFIG_HOME`). On Windows it is `%LOCALAPPDATA%` (REQ-014). Both files are optional; a missing file means defaults. The old path `~/.config/aw-taskwarrior/config.toml` is **not read** (no fallback). A leftover file there is ignored.
 
 ### Server settings (from `aw-client.toml`)
 

@@ -104,7 +104,7 @@ flowchart TD
 
 ### config.rs
 
-**Responsibility:** runtime settings with defaults, following the ActivityWatch config convention (REQ-009). Server host and port come from `~/.config/activitywatch/aw-client/aw-client.toml`; daemon settings come from `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml`, section `[aw-taskwarrior]`. Both files are optional. Base directory via `dirs::config_dir`.
+**Responsibility:** runtime settings with defaults, following the ActivityWatch config convention (REQ-009). Server host and port come from `~/.config/activitywatch/aw-client/aw-client.toml`; daemon settings come from `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml`, section `[aw-taskwarrior]`. Both files are optional. Base directory: `dirs::config_dir()` on Linux and macOS, `%LOCALAPPDATA%` (`dirs::data_local_dir()`) on Windows (REQ-014).
 
 | Item | Kind | Notes |
 |------|------|-------|
@@ -112,14 +112,15 @@ flowchart TD
 | `ConfigLoadError` | enum | `Io { path, source }`, `Parse { path, source }`, `InvalidValue { path, message }`. All are fatal at startup and name the file. |
 | `config_path()` | fn | Path of `aw-taskwarrior.toml`, or None if no config dir exists |
 | `client_config_path()` | fn | Path of `aw-client.toml`, or None if no config dir exists |
-| `load(testing: bool)` | fn | Reads `aw-client.toml` (`[server]`, or `[server-testing]` when testing; port may be a string or an integer), then `aw-taskwarrior.toml` (`[aw-taskwarrior]`, or `[aw-taskwarrior-testing]`). Missing files give defaults. Testing mode defaults the port to 5666. Always called with `false` until REQ-001. |
+| `load(testing: bool)` | fn | Reads `aw-client.toml` (`[server]`, or `[server-testing]` when testing; port may be a string or an integer), then `aw-taskwarrior.toml` (`[aw-taskwarrior]`, or `[aw-taskwarrior-testing]`). Missing files give defaults. If `aw-taskwarrior.toml` is missing, it is first created from `examples/aw-taskwarrior.toml` with every key commented out; a creation failure is logged and the defaults are used (REQ-014). Testing mode defaults the port to 5666. Always called with `false` until REQ-001. |
 
 - Private types: `ClientFile`/`ServerSection`/`PortValue` (aw-client.toml), `OwnFile`/`Section` (aw-taskwarrior.toml). `Section` rejects unknown keys, so a removed `aw_server_host` or `aw_server_port` fails at startup.
-- Private functions: `load_from(client_path, own_path, testing)` (testable core of `load`), `read_optional`, `apply_client_file`, `apply_own_file`, `component_path`.
+- Private functions: `load_from(client_path, own_path, testing)` (testable core of `load`), `read_optional`, `apply_client_file`, `apply_own_file`, `component_path`, `base_config_dir`, `commented_example`, `comment_out_keys`, `create_default_file` (writes only when the file is absent, `create_new`).
+- Embedded constant: `EXAMPLE_CONFIG` (`include_str!` of `examples/aw-taskwarrior.toml`).
 - The old path `~/.config/aw-taskwarrior/config.toml` is never read.
 
 - `providers` holds the raw `[aw-taskwarrior.providers.<name>]` tables. The watcher does not interpret them; they are passed to the chosen provider's `create()`.
-- Tests (22): defaults and provider default; config paths follow the convention; aw-client.toml with string port, integer port, missing keys, testing section, ignored sections, non-numeric port, malformed file; aw-taskwarrior.toml full section, partial section, nested provider settings, removed server key rejected and named, testing section, ignored sections, wrong type; `load_from` with no files, missing files, testing defaults, both files, malformed file names its path.
+- Tests (27): first run (commented example has no active keys; created file loads as defaults; existing file kept; unwritable location is an error; base directory per platform); defaults and provider default; config paths follow the convention; aw-client.toml with string port, integer port, missing keys, testing section, ignored sections, non-numeric port, malformed file; aw-taskwarrior.toml full section, partial section, nested provider settings, removed server key rejected and named, testing section, ignored sections, wrong type; `load_from` with no files, missing files, testing defaults, both files, malformed file names its path.
 
 ### providers.rs
 
@@ -163,11 +164,11 @@ flowchart TD
 
 ## Test summary
 
-91 unit tests, all run with `cargo test` from the repository root, plus 1 live test that is ignored by default:
+96 unit tests, all run with `cargo test` from the repository root, plus 1 live test that is ignored by default:
 
 | Crate | Tests |
 |-------|-------|
 | aw-taskwarrior-core | 0 |
 | aw-taskwarrior-provider-cli | 11 |
 | aw-taskwarrior-provider-http | 49 (+1 ignored live test) |
-| aw-taskwarrior (watcher) | 31 (config 22, activitywatch 3, providers 6) |
+| aw-taskwarrior (watcher) | 36 (config 27, activitywatch 3, providers 6) |

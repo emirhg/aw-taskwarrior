@@ -71,7 +71,8 @@ WINDOWS_TOOLCHAIN_BIN=~/.local/share/rust-cross/rustup/toolchains/1.99.0-x86_64-
 The script checks the linker and the Windows standard library first. Its build directory (`target/windows`) is separate from the Linux build. The Windows binary imports only Windows system DLLs.
 
 **Running on Windows 11**
-- Settings are read from `%APPDATA%\activitywatch\aw-client\aw-client.toml` and `%APPDATA%\activitywatch\aw-taskwarrior\aw-taskwarrior.toml`.
+- Settings are read from `%LOCALAPPDATA%\activitywatch\aw-client\aw-client.toml` and `%LOCALAPPDATA%\activitywatch\aw-taskwarrior\aw-taskwarrior.toml`. This is the same folder the Python ActivityWatch components use (REQ-014).
+- If `aw-taskwarrior.toml` does not exist, the daemon creates it on first run (see [Configuration](#configuration)).
 - The `task` command must be `task.exe` on `PATH`.
 - Stop the daemon with Ctrl+C.
 - aw-qt finds `aw-taskwarrior.exe` by name if it is on `PATH` or in the folder aw-qt searches.
@@ -90,6 +91,10 @@ The config follows the ActivityWatch convention: one file per component under `~
 | `~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml` | This daemon's settings (`[aw-taskwarrior]`) |
 
 Both files are optional. Without `aw-client.toml` the server is `127.0.0.1:5600`. The old path `~/.config/aw-taskwarrior/config.toml` is no longer read; move any settings into the new file.
+
+On Windows the same layout is under `%LOCALAPPDATA%\activitywatch\` (see "Running on Windows 11" above).
+
+**First run:** if `aw-taskwarrior.toml` does not exist, the daemon creates it from [`examples/aw-taskwarrior.toml`](examples/aw-taskwarrior.toml), with every line commented out, so the defaults apply. Remove the `#` in front of a line to change that setting. An existing file is never changed. `aw-client.toml` is never created by the daemon.
 
 To change the server, edit `aw-client.toml`:
 

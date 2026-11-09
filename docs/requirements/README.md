@@ -17,5 +17,6 @@ Each requirement has its own file, written from [_template.md](_template.md). Wr
 | [REQ-011](REQ-011-windows-cross-build.md) | Cross-compile aw-taskwarrior for Windows 11 from Linux | Implemented |
 | [REQ-012](REQ-012-http-provider-optional-auth.md) | HTTP provider without credentials (task-rest local mode) | Implemented |
 | [REQ-013](REQ-013-http-provider-hardening.md) | HTTP provider hardening against task-rest | Implemented |
+| [REQ-014](REQ-014-config-location-and-first-run.md) | Windows config location and first-run config file | Implemented |
 
 Status is mirrored in [../STATUS.md](../STATUS.md).
