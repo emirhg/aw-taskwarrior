@@ -1,0 +1,51 @@
+# Example configuration for aw-taskwarrior (the watcher daemon).
+#
+# Location of this file:
+#   Linux:   ~/.config/activitywatch/aw-taskwarrior/aw-taskwarrior.toml
+#   macOS:   ~/Library/Application Support/activitywatch/aw-taskwarrior/aw-taskwarrior.toml
+#   Windows: %LOCALAPPDATA%\activitywatch\aw-taskwarrior\aw-taskwarrior.toml
+#
+# If that file does not exist, aw-taskwarrior creates it on first run from this example,
+# with every line commented out (so the defaults apply). To change a setting, remove the "#"
+# in front of its line.
+#
+# Every setting is optional. A line starting with "#" is inactive and shows the default.
+# The ActivityWatch server (host and port) is read from aw-client.toml, not from this file.
+
+[aw-taskwarrior]
+# Where the active task comes from: "cli" (the `task` command) or "http" (task-rest API).
+provider = "cli"                    # default
+
+# How often to read the active task (seconds).
+poll_interval_seconds = 5           # default
+
+# TaskWarrior tag that marks a task as "offline-trackable" (tolerates long gaps, e.g. suspend).
+offline_tag = "OFFLINE"             # default
+
+# Heartbeat merge windows (seconds). Online: a gap longer than this shows as a break.
+# Offline tasks use the longer window, so a laptop suspend does not split the activity.
+online_pulsetime_seconds = 120      # default (2 min)
+offline_pulsetime_seconds = 43200   # default (12 h)
+
+# Only needed if the ActivityWatch server requires an API key.
+#api_key = "your-api-key-here"
+
+# ---------------------------------------------------------------------------
+# Provider settings. Only the table of the selected provider is used.
+# ---------------------------------------------------------------------------
+
+# provider = "cli": runs `task rc.hooks:off +ACTIVE export`.
+[aw-taskwarrior.providers.cli]
+timeout_seconds = 5                 # default: max time for one `task export` call
+
+# provider = "http": reads the active task from the task-rest API.
+# To use it, set provider = "http" above, then set base_url below.
+#
+# Local mode (no login): start task-rest with `python -m task_rest.serve --no-auth`
+# and leave username and password unset.
+# Authenticated server: set both username and password. Setting only one is an error.
+[aw-taskwarrior.providers.http]
+#base_url = "http://127.0.0.1:5000"   # required for provider = "http"
+#username = "dev"                     # optional: set together with password
+#password = "your-password"           # optional: set together with username
+#timeout_seconds = 5                  # default

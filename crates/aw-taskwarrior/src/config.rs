@@ -6,9 +6,18 @@
 //! - In testing mode, the `-testing` variant of each section is used instead.
 //!
 //! Both files are optional. The old path `~/.config/aw-taskwarrior/config.toml` is not read.
+//!
+//! The base directory is `dirs::config_dir()` on Linux and macOS, and `%LOCALAPPDATA%` on
+//! Windows, matching the Python ActivityWatch components (REQ-014). If the daemon's own file
+//! does not exist, `load` writes it with every key commented out (REQ-014).
 
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::{Path, PathBuf};
+
+/// Built-in example file. A missing `aw-taskwarrior.toml` is created from it, with the
+/// keys commented out (REQ-014).
+const EXAMPLE_CONFIG: &str = include_str!("../../../examples/aw-taskwarrior.toml");
 
 const COMPONENT: &str = "aw-taskwarrior";
 const CLIENT_COMPONENT: &str = "aw-client";
@@ -140,9 +149,21 @@ impl std::fmt::Display for ConfigLoadError {
     }
 }
 
+/// Base directory for ActivityWatch config files (REQ-014).
+///
+/// Windows uses the Local app-data folder (`%LOCALAPPDATA%`), like the Python `platformdirs`
+/// config path. Other platforms use `dirs::config_dir()` (XDG on Linux).
+fn base_config_dir() -> Option<PathBuf> {
+    if cfg!(windows) {
+        dirs::data_local_dir()
+    } else {
+        dirs::config_dir()
+    }
+}
+
 /// `<config dir>/activitywatch/<name>/<name>.toml`
 fn component_path(name: &str) -> Option<PathBuf> {
-    dirs::config_dir().map(|d| {
+    base_config_dir().map(|d| {
         d.join("activitywatch")
             .join(name)
             .join(format!("{}.toml", name))
@@ -159,8 +180,67 @@ pub fn client_config_path() -> Option<PathBuf> {
     component_path(CLIENT_COMPONENT)
 }
 
+/// The example file with every key line commented out. Section headers stay active, so the
+/// result is valid TOML that loads as the built-in defaults.
+fn commented_example() -> String {
+    comment_out_keys(EXAMPLE_CONFIG)
+}
+
+fn comment_out_keys(text: &str) -> String {
+    let mut out: Vec<String> = text
+        .lines()
+        .map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') || trimmed.starts_with('[') {
+                line.to_string()
+            } else {
+                format!("#{}", line)
+            }
+        })
+        .collect();
+    out.push(String::new());
+    out.join("\n")
+}
+
+/// Writes `contents` to `path` only if no file exists there, creating the parent directory.
+/// Returns `Ok(true)` when the file was written. An existing file is never changed.
+fn create_default_file(path: &Path, contents: &str) -> std::io::Result<bool> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    // `create_new` fails if the file exists, so a file written by someone else is kept.
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+    {
+        Ok(mut file) => {
+            file.write_all(contents.as_bytes())?;
+            Ok(true)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
 /// Loads the configuration. `testing` selects the `-testing` sections.
+///
+/// If this daemon's config file does not exist, it is created first (REQ-014). A failure to
+/// create it is logged and the defaults are used.
 pub fn load(testing: bool) -> Result<Config, ConfigLoadError> {
+    if let Some(path) = config_path() {
+        match create_default_file(&path, &commented_example()) {
+            Ok(true) => {
+                crate::log::log_info(&format!("Created default config file {}", path.display()))
+            }
+            Ok(false) => {}
+            Err(e) => crate::log::log_error(&format!(
+                "Could not create default config file {}: {}",
+                path.display(),
+                e
+            )),
+        }
+    }
     load_from(
         client_config_path().as_deref(),
         config_path().as_deref(),
@@ -329,6 +409,100 @@ mod tests {
         let cfg = Config::default();
         assert_eq!(cfg.provider, "cli");
         assert!(cfg.providers.is_empty());
+    }
+
+    // ---- first run (REQ-014) ----
+
+    /// A unique scratch directory for one test. The caller removes it.
+    fn scratch_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "aw-taskwarrior-test-{}-{}",
+            std::process::id(),
+            name
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    #[test]
+    fn test_commented_example_has_no_active_keys() {
+        let text = commented_example();
+        for line in text.lines() {
+            let t = line.trim();
+            if t.is_empty() || t.starts_with('#') || t.starts_with('[') {
+                continue;
+            }
+            panic!("active key line in default config: {line}");
+        }
+        // Still valid TOML.
+        let _: toml::Table = toml::from_str(&text).unwrap();
+    }
+
+    #[test]
+    fn test_default_file_loads_as_builtin_defaults() {
+        let dir = scratch_dir("defaults");
+        let path = dir.join("sub").join("aw-taskwarrior.toml");
+        assert!(create_default_file(&path, &commented_example()).unwrap());
+
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let mut cfg = Config::default();
+        apply_own_file(&mut cfg, &path, &contents, false).unwrap();
+        let defaults = Config::default();
+        assert_eq!(cfg.poll_interval_seconds, defaults.poll_interval_seconds);
+        assert_eq!(cfg.offline_tag, defaults.offline_tag);
+        assert_eq!(cfg.provider, defaults.provider);
+        assert_eq!(
+            cfg.online_pulsetime_seconds,
+            defaults.online_pulsetime_seconds
+        );
+        assert_eq!(
+            cfg.offline_pulsetime_seconds,
+            defaults.offline_pulsetime_seconds
+        );
+        // The provider table headers stay active, so each provider table exists but is empty.
+        assert!(cfg
+            .providers
+            .values()
+            .all(|v| v.as_table().is_some_and(|t| t.is_empty())));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_existing_file_is_not_overwritten() {
+        let dir = scratch_dir("keep");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("aw-taskwarrior.toml");
+        let mine = "[aw-taskwarrior]\npoll_interval_seconds = 9\n";
+        std::fs::write(&path, mine).unwrap();
+
+        assert!(!create_default_file(&path, &commented_example()).unwrap());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), mine);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_unwritable_location_is_an_error() {
+        // The parent "directory" is a regular file, so creating the file must fail.
+        let dir = scratch_dir("blocked");
+        std::fs::create_dir_all(&dir).unwrap();
+        let blocker = dir.join("not-a-dir");
+        std::fs::write(&blocker, "x").unwrap();
+        let path = blocker.join("aw-taskwarrior.toml");
+
+        assert!(create_default_file(&path, &commented_example()).is_err());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_base_dir_follows_platform_convention() {
+        if cfg!(windows) {
+            assert_eq!(base_config_dir(), dirs::data_local_dir());
+        } else {
+            assert_eq!(base_config_dir(), dirs::config_dir());
+        }
     }
 
     // ---- paths ----
