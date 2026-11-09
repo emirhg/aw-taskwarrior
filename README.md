@@ -4,10 +4,10 @@ Binary: `aw-taskwarrior.exe` (console executable, x86-64). Checksum in `SHA256SU
 
 ## Provenance
 
-- Source commit: `474b1b4` on `main` of aw-taskwarrior (built from the working tree at that commit).
+- Source commit: `45ca4ae` on aw-taskwarrior (built from the clean working tree at that commit; includes the HTTP provider hardening, REQ-013).
 - Built with: Rust 1.99.0 (isolated rustup install, windows-gnu standard library) and MinGW-w64 GCC 16.2.0, using `scripts/build-windows.sh` (REQ-011).
 - Imports: Windows system DLLs only (no MinGW runtime DLLs).
-- Tested: unit tests run under Wine. Not tested on a real Windows 11 machine.
+- Tested: not run under Wine or on Windows for this build. The Linux test suite passes on the source commit. Not tested on a real Windows 11 machine.
 
 ## Install on Windows 11
 
