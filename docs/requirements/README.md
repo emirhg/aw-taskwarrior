@@ -18,5 +18,6 @@ Each requirement has its own file, written from [_template.md](_template.md). Wr
 | [REQ-012](REQ-012-http-provider-optional-auth.md) | HTTP provider without credentials (task-rest local mode) | Implemented |
 | [REQ-013](REQ-013-http-provider-hardening.md) | HTTP provider hardening against task-rest | Implemented |
 | [REQ-014](REQ-014-config-location-and-first-run.md) | Windows config location and first-run config file | Implemented |
+| [REQ-015](REQ-015-idle-task-title.md) | Configurable title for idle periods, empty by default (no heartbeat) | Documented, not implemented |
 
 Status is mirrored in [../STATUS.md](../STATUS.md).

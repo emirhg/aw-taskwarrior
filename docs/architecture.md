@@ -72,18 +72,23 @@ sequenceDiagram
             P->>P: log error, reuse last_known_task
         end
         P-->>M: ActiveTask
-        M->>M: select_pulsetime(task, cfg)
-        M->>A: send_heartbeat(task, pulsetime)
-        A->>S: heartbeat(bucket, event, pulsetime)
-        S-->>A: ok or error
-        A-->>M: Result (error is logged, loop continues)
+        M->>M: heartbeat_task(task, cfg)
+        alt Some(task)
+            M->>M: select_pulsetime(task, cfg)
+            M->>A: send_heartbeat(task, pulsetime)
+            A->>S: heartbeat(bucket, event, pulsetime)
+            S-->>A: ok or error
+            A-->>M: Result (error is logged, loop continues)
+        else None (idle and no_task_title empty)
+            M->>M: no heartbeat, log idle once
+        end
         M->>M: sleep, checking shutdown every 200 ms
     end
 ```
 
 Key rules:
 - The active task is the one with the most recent `start` timestamp. Tasks with an unparseable `start` sort last.
-- With no active task, the heartbeat carries the title `No task tracked`.
+- With no active task, no heartbeat is sent by default, so the idle time shows as a gap. If `no_task_title` is set in `aw-taskwarrior.toml` (non-empty after trimming), the heartbeat carries that title instead (REQ-015).
 - Pulsetime depends on the task's tags. A task with the offline tag gets the long pulsetime (12 h by default), so a suspend does not split its span. Other tasks get 120 s.
 - Empty values are omitted from the heartbeat data: project, tags and uuid are left out when empty or absent.
 

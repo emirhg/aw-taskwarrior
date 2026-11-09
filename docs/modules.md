@@ -45,7 +45,7 @@ flowchart TD
 | Item | Kind | Notes |
 |------|------|-------|
 | `ActiveTask` | struct | `uuid: Option<String>`, `title`, `project`, `tags`. The task currently being tracked. |
-| `ActiveTask::default_task()` | fn | Title "No task tracked", no uuid, empty project and tags |
+| `ActiveTask::default_task()` | fn | Empty title, no uuid, empty project and tags. Means "no task active"; the watcher decides what to send (REQ-015). |
 | `TaskProvider` | trait (`Send`) | `name(&self) -> &'static str`; `active_task(&self) -> Result<ActiveTask, ProviderError>` |
 | `ProviderError` | enum | `Unavailable(String)`, `Timeout`, `InvalidResponse(String)`, `InvalidConfig(String)`. Implements `Display` and `Error`. |
 
@@ -98,7 +98,7 @@ flowchart TD
 **Responsibility:** entry point. Loads config, builds the provider, installs the shutdown handler, creates the ActivityWatch client, and runs the poll loop.
 
 - Private functions: `main`, `sleep_with_shutdown_check(Duration, &Arc<AtomicBool>)`.
-- Uses: `config::load`, `providers::build`, `providers::resolve_task`, `activitywatch::AwTaskWatcherClient`, `activitywatch::select_pulsetime`, `ActiveTask::default_task`, `log::*`.
+- Uses: `config::load`, `providers::build`, `providers::resolve_task`, `activitywatch::AwTaskWatcherClient`, `activitywatch::select_pulsetime`, `activitywatch::heartbeat_task`, `ActiveTask::default_task`, `log::*`.
 - Startup order: config, provider (fails fast, before any network I/O), signal handler, ActivityWatch client, bucket.
 - Tests: none.
 
@@ -108,7 +108,7 @@ flowchart TD
 
 | Item | Kind | Notes |
 |------|------|-------|
-| `Config` | struct | Fields: `poll_interval_seconds` (5), `aw_server_host` ("127.0.0.1", from aw-client.toml), `aw_server_port` (5600, from aw-client.toml), `api_key` (None), `offline_tag` ("OFFLINE"), `online_pulsetime_seconds` (120), `offline_pulsetime_seconds` (43200), `provider` ("cli"), `providers` (empty table) |
+| `Config` | struct | Fields: `poll_interval_seconds` (5), `aw_server_host` ("127.0.0.1", from aw-client.toml), `aw_server_port` (5600, from aw-client.toml), `api_key` (None), `offline_tag` ("OFFLINE"), `online_pulsetime_seconds` (120), `offline_pulsetime_seconds` (43200), `no_task_title` (empty: no heartbeat while idle, REQ-015), `provider` ("cli"), `providers` (empty table) |
 | `ConfigLoadError` | enum | `Io { path, source }`, `Parse { path, source }`, `InvalidValue { path, message }`. All are fatal at startup and name the file. |
 | `config_path()` | fn | Path of `aw-taskwarrior.toml`, or None if no config dir exists |
 | `client_config_path()` | fn | Path of `aw-client.toml`, or None if no config dir exists |
@@ -146,6 +146,7 @@ flowchart TD
 | `ensure_bucket_with_shutdown_check(&Arc<AtomicBool>)` | fn | Creates bucket type `task-activity`. Treats "304" or "already exists" as success. Retries every 30 s. |
 | `send_heartbeat(&ActiveTask, f64)` | fn | Builds event data with only non-empty fields: `title`, `project`, `tags`, `uuid`. Duration is zero. |
 | `select_pulsetime(&ActiveTask, &Config)` | fn | Offline pulsetime if any tag equals `offline_tag`, otherwise online pulsetime |
+| `heartbeat_task(&ActiveTask, &Config)` | fn | `None` when the task is `default_task()` and `no_task_title` is empty after trimming (no heartbeat). For `default_task()` with a title set, returns the task with that title. Any other task is returned unchanged. (REQ-015) |
 
 - Tests (3): offline tag present, absent, custom tag name.
 

@@ -156,6 +156,7 @@ provider = "cli"                  # default
 
 poll_interval_seconds = 5         # default: how often to read the active task
 offline_tag = "OFFLINE"           # default: tasks with this tag get the long pulsetime
+#no_task_title = "No task tracked" # default: unset, so no heartbeat while no task is active
 online_pulsetime_seconds = 120    # default
 offline_pulsetime_seconds = 43200 # default (12 h)
 #api_key = "your-api-key"         # only if ActivityWatch requires one
@@ -197,9 +198,9 @@ timeout_seconds = 5                  # optional, default 5
 Unknown keys in `[aw-taskwarrior]` are rejected at startup. In particular, `aw_server_host` and `aw_server_port` are no longer settings here; set the server in `aw-client.toml`. A `[aw-taskwarrior-testing]` section is reserved for the future `--testing` mode.
 
 **Default behavior when no task is active:**
-- A heartbeat is sent with only the title "No task tracked"
-- No project or tags are included (empty values omitted)
-- This shows in ActivityWatch that tracking is running but no task is active
+- No heartbeat is sent, so the idle time shows as a gap in ActivityWatch
+- To send a marker instead, set `no_task_title` (for example `no_task_title = "No task tracked"`). The heartbeat then has only that title; no project or tags are included (REQ-015)
+- An empty or unset `no_task_title` means no heartbeat
 
 ## Running
 
@@ -215,7 +216,7 @@ The daemon will:
    - Every 5 seconds: query TaskWarrior for active tasks via `task rc.hooks:off +ACTIVE export`
    - Find the most recently started task
    - Send a heartbeat to ActivityWatch with task details
-   - If no task is active, send "No task tracked" indicator
+   - If no task is active, send nothing, or the `no_task_title` marker if one is set
 5. Exit cleanly on Ctrl-C or when receiving SIGTERM
 
 **Example output:**
