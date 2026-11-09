@@ -66,6 +66,7 @@ pub fn create(settings: Option<&toml::Table>) -> Result<Box<dyn TaskProvider>, P
 fn build(settings: Option<&toml::Table>) -> Result<HttpProvider, ProviderError> {
     let empty = toml::Table::new();
     let settings = settings.unwrap_or(&empty);
+    reject_unknown_keys(settings)?;
 
     let base_url = parse_base_url(&required_string(settings, "base_url")?)?;
     let credentials = credentials_setting(settings)?;
@@ -287,6 +288,23 @@ fn key_error(key: &str, message: impl Into<String>) -> ProviderError {
         key,
         message.into()
     ))
+}
+
+/// Settings this provider understands. A typo such as `timeut_seconds` must fail at startup
+/// rather than being silently ignored (REQ-013).
+const SETTING_KEYS: [&str; 4] = ["base_url", "username", "password", "timeout_seconds"];
+
+fn reject_unknown_keys(settings: &toml::Table) -> Result<(), ProviderError> {
+    match settings
+        .keys()
+        .find(|key| !SETTING_KEYS.contains(&key.as_str()))
+    {
+        None => Ok(()),
+        Some(key) => Err(key_error(
+            key,
+            format!("unknown key (allowed: {})", SETTING_KEYS.join(", ")),
+        )),
+    }
 }
 
 fn required_string(settings: &toml::Table, key: &str) -> Result<String, ProviderError> {
@@ -1033,6 +1051,87 @@ mod tests {
                 "No sync.* settings are configured. See task-sync(5).".to_string()
             )
         );
+    }
+
+    // ---- hardening (REQ-013) ----
+
+    #[test]
+    fn test_unknown_key_is_rejected_and_named() {
+        let text = "base_url = \"http://127.0.0.1:5000\"\ntimeut_seconds = 3\n";
+        let err = build(Some(&settings(text))).unwrap_err();
+        assert!(matches!(err, ProviderError::InvalidConfig(_)));
+        let message = err.to_string();
+        assert!(message.contains("timeut_seconds"));
+        assert!(message.contains("unknown key"));
+        assert!(message.contains("timeout_seconds"));
+    }
+
+    #[test]
+    fn test_known_keys_are_accepted() {
+        assert!(build(Some(&valid_settings("http://127.0.0.1:5000"))).is_ok());
+        assert!(build(Some(&local_settings("http://127.0.0.1:5000"))).is_ok());
+    }
+
+    #[test]
+    fn test_lone_unparseable_start_is_active_only_without_valid_start() {
+        // Not dropped: the server already filtered on start.any=, so it counts as active.
+        let task = select_from(
+            r#"[{"id":9,"uuid":"bad","description":"bad date","status":"pending","start":"not a date"}]"#,
+        );
+        assert_eq!(task.uuid.as_deref(), Some("bad"));
+        // A valid start still beats it.
+        let task = select_from(
+            r#"[{"id":9,"uuid":"bad","description":"bad date","status":"pending","start":"not a date"},
+                {"id":1,"uuid":"good","description":"good date","status":"pending","start":"Thu, 05 Nov 2026 23:27:01 -0600"}]"#,
+        );
+        assert_eq!(task.uuid.as_deref(), Some("good"));
+    }
+
+    #[test]
+    fn test_auth_200_with_non_json_is_invalid_response() {
+        let (url, server) = serve(vec![Reply {
+            status: 200,
+            body: "<html>login page</html>".to_string(),
+        }]);
+        let err = provider_for(&url).active_task().unwrap_err();
+        server.join().unwrap();
+        assert!(
+            matches!(err, ProviderError::InvalidResponse(ref m) if m.starts_with("auth response:")),
+            "got {:?}",
+            err
+        );
+        assert!(!err.to_string().contains(PASSWORD));
+    }
+
+    #[test]
+    fn test_auth_500_is_http_error_without_secrets() {
+        let (url, server) = serve(vec![Reply {
+            status: 500,
+            body: "boom".to_string(),
+        }]);
+        let err = provider_for(&url).active_task().unwrap_err();
+        server.join().unwrap();
+        assert_eq!(
+            err,
+            ProviderError::Unavailable("authentication failed with HTTP 500".to_string())
+        );
+        assert!(!err.to_string().contains(PASSWORD));
+    }
+
+    #[test]
+    fn test_auth_timeout_is_timeout() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        thread::spawn(move || {
+            let _connection = listener.accept();
+            thread::sleep(Duration::from_secs(3));
+        });
+        let provider = build(Some(&settings(&format!(
+            "base_url = \"{}\"\nusername = \"dev\"\npassword = \"{}\"\ntimeout_seconds = 1\n",
+            url, PASSWORD
+        ))))
+        .unwrap();
+        assert_eq!(provider.active_task().unwrap_err(), ProviderError::Timeout);
     }
 
     // ---- live test (run manually) ----
